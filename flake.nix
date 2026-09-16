@@ -111,6 +111,8 @@
             buildPhase = ''
               export PYTHONPATH="$PWD/src:$PYTHONPATH"
               export HOME=$TMPDIR
+              # Hypothesis writes an example database; keep it out of the store.
+              export HYPOTHESIS_STORAGE_DIRECTORY="$TMPDIR/hypothesis"
               pytest -q tests
             '';
             installPhase = "touch $out";
@@ -118,6 +120,9 @@
 
           lint = pkgs.runCommand "learn-robotics-lint" { nativeBuildInputs = [ pkgs.ruff ]; } ''
             cd ${./.}
+            # The source is a read-only store path, and ruff defaults to writing
+            # its cache beside the files it lints. Point it somewhere writable.
+            export RUFF_CACHE_DIR="$TMPDIR/ruff-cache"
             ruff check src tests scripts
             ruff format --check src tests scripts
             touch $out

@@ -105,6 +105,23 @@ class MujocoArm:
     def torque_limit(self) -> np.ndarray:
         return self._torque_limit.copy()
 
+    def launch_viewer(self):
+        """Open MuJoCo's own interactive viewer on this simulation.
+
+        Complementary to Rerun rather than a replacement. Rerun shows what the
+        *controller* believes -- frames, targets, error traces, on a scrubbable
+        timeline. This shows what the *physics* is doing: contact points,
+        constraint forces, the floor, actuator forces, and the solver's own
+        diagnostics. The floor-penetration bug would have been obvious here in
+        seconds.
+
+        Returns a passive viewer handle; call ``sync()`` after each step and use
+        it as a context manager.
+        """
+        import mujoco.viewer
+
+        return mujoco.viewer.launch_passive(self.model, self.data)
+
     def bias_torque(self) -> np.ndarray:
         """MuJoCo's own gravity + Coriolis term, for cross-checking Pinocchio."""
         return self.data.qfrc_bias.copy()

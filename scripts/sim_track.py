@@ -23,6 +23,7 @@ three, so it is worth ruling them out first.
 from __future__ import annotations
 
 import argparse
+import time
 
 import numpy as np
 
@@ -45,7 +46,7 @@ CENTRE = np.array([0.0, 0.9, -0.7])
 AMPLITUDE = np.array([0.6, 0.30, 0.35])
 
 
-def run(name: str, seconds: float, hz: float, *, spawn: bool = False):
+def run(name: str, seconds: float, hz: float, *, spawn: bool = False, viewer: bool = False):
     params = default_params()
     arm = MujocoArm(params)
 
@@ -60,6 +61,7 @@ def run(name: str, seconds: float, hz: float, *, spawn: bool = False):
     saturated = 0
     refused = np.zeros(3)
 
+    handle = arm.launch_viewer() if viewer else None
     with Telemetry(f"track_{name}", params, spawn=spawn) as log:
         for _ in range(int(seconds / arm.dt)):
             state = arm.read()
@@ -79,6 +81,10 @@ def run(name: str, seconds: float, hz: float, *, spawn: bool = False):
             saturated += int(arm.is_saturated)
             arm.step()
 
+            if handle is not None:
+                handle.sync()
+                time.sleep(arm.dt)  # play at wall-clock speed so it is watchable
+
             error = float(np.linalg.norm(fk(state.q, params) - fk(target.q, params)))
             errors.append(error)
 
@@ -94,6 +100,9 @@ def run(name: str, seconds: float, hz: float, *, spawn: bool = False):
                 tip_error_m=error,
             )
 
+    if handle is not None:
+        handle.close()
+
     settle = int(0.5 / hz / arm.dt)  # discard the first half cycle
     tail = np.array(errors[settle:])
     return float(np.sqrt(np.mean(tail**2))), float(np.max(tail)), saturated
@@ -103,7 +112,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--seconds", type=float, default=4.0)
     parser.add_argument("--hz", type=float, default=1.0)
-    parser.add_argument("--spawn", action="store_true")
+    parser.add_argument("--spawn", action="store_true", help="live Rerun viewer")
+    parser.add_argument("--viewer", action="store_true", help="MuJoCo's own physics viewer")
+    parser.add_argument("--only", help="run a single controller instead of all four")
     args = parser.parse_args()
 
     samples = [
@@ -125,11 +136,17 @@ def main() -> int:
 
     print(f"{'controller':<18} {'RMS tip error':>15} {'peak':>10} {'saturated':>11}")
     print("-" * 57)
+    names = (args.only,) if args.only else ("pd", "pd_gravity", "feedforward_pd", "computed_torque")
     results = {}
-    for name in ("pd", "pd_gravity", "feedforward_pd", "computed_torque"):
-        rms, peak, saturated = run(name, args.seconds, args.hz, spawn=args.spawn)
+    for name in names:
+        rms, peak, saturated = run(
+            name, args.seconds, args.hz, spawn=args.spawn, viewer=args.viewer
+        )
         results[name] = rms
         print(f"{name:<18} {rms * 1000:>12.2f} mm {peak * 1000:>7.2f} mm {saturated:>11}")
+
+    if len(names) < 4:
+        return 0
 
     print(
         f"\nGravity compensation alone cuts error {results['pd'] / results['pd_gravity']:.1f}x."

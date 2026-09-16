@@ -30,6 +30,10 @@ models:
 track *ARGS:
     python scripts/sim_track.py {{ARGS}}
 
+# Watch the physics live in MuJoCo's own viewer (shows contacts and the floor).
+watch CONTROLLER="feedforward_pd":
+    python scripts/sim_track.py --viewer --only {{CONTROLLER}} --seconds 20
+
 # Cartesian impedance: push the arm and watch it yield by exactly F/K.
 impedance *ARGS:
     python scripts/sim_impedance.py {{ARGS}}
