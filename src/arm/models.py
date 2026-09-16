@@ -41,6 +41,7 @@ _BANNER = (
 # Placeholder visual/collision geometry, replaced by build123d meshes once the
 # CAD model exists. Kept deliberately crude so nobody mistakes it for real.
 _LINK_THICKNESS_M = 0.030
+LINK_RADIUS_M = _LINK_THICKNESS_M / 2.0
 
 
 def _fmt(value: float) -> str:
