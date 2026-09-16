@@ -28,6 +28,9 @@ from xml.dom import minidom
 from arm.params import REPO_ROOT, ArmParams, default_params
 
 GENERATED_DIR = REPO_ROOT / "models" / "generated"
+MESH_DIR = REPO_ROOT / "cad" / "export"
+# Path from models/generated/ to cad/export/, as written into the model files.
+MESH_RELATIVE = "../../cad/export"
 URDF_PATH = GENERATED_DIR / "arm.urdf"
 MJCF_PATH = GENERATED_DIR / "arm.xml"
 
@@ -42,6 +45,16 @@ _BANNER = (
 # CAD model exists. Kept deliberately crude so nobody mistakes it for real.
 _LINK_THICKNESS_M = 0.030
 LINK_RADIUS_M = _LINK_THICKNESS_M / 2.0
+
+
+def _meshes_available() -> bool:
+    """Whether the CAD exports exist.
+
+    Generation must not require the CAD shell -- `just models` runs in the
+    default environment. When the meshes are absent the models fall back to
+    capsules, which is exactly what they were before the CAD existed.
+    """
+    return all((MESH_DIR / f"{name}.stl").exists() for name in ("base", "upper_arm", "forearm"))
 
 
 def _fmt(value: float) -> str:
@@ -150,11 +163,20 @@ def _urdf_link(robot: ET.Element, link, length: float, along: str) -> None:
     )
     centre = (0.0, 0.0, length / 2.0) if along == "z" else (length / 2.0, 0.0, 0.0)
 
-    for tag in ("visual", "collision"):
-        node = ET.SubElement(element, tag)
-        ET.SubElement(node, "origin", xyz=_vec(centre), rpy="0 0 0")
-        geometry = ET.SubElement(node, "geometry")
+    visual = ET.SubElement(element, "visual")
+    if _meshes_available():
+        ET.SubElement(visual, "origin", xyz="0 0 0", rpy="0 0 0")
+        geometry = ET.SubElement(visual, "geometry")
+        ET.SubElement(geometry, "mesh", filename=f"{MESH_RELATIVE}/{link.name}.stl")
+    else:
+        ET.SubElement(visual, "origin", xyz=_vec(centre), rpy="0 0 0")
+        geometry = ET.SubElement(visual, "geometry")
         ET.SubElement(geometry, "box", size=_vec(size))
+
+    collision = ET.SubElement(element, "collision")
+    ET.SubElement(collision, "origin", xyz=_vec(centre), rpy="0 0 0")
+    geometry = ET.SubElement(collision, "geometry")
+    ET.SubElement(geometry, "box", size=_vec(size))
 
 
 # ---------------------------------------------------------------------------
@@ -166,7 +188,16 @@ def build_mjcf(params: ArmParams | None = None) -> str:
     params = params or default_params()
     root = ET.Element("mujoco", model=params.meta.name)
 
-    ET.SubElement(root, "compiler", angle="radian")
+    ET.SubElement(root, "compiler", angle="radian", meshdir=MESH_RELATIVE)
+
+    # Visual meshes exported from the CAD. Collision stays on the capsules
+    # below: convexified meshes are slower and buy nothing for an arm whose
+    # links are convex-ish anyway. Separating visual from collision geometry is
+    # standard practice, not a shortcut.
+    if _meshes_available():
+        assets = ET.SubElement(root, "asset")
+        for _, link, _, _, _ in _chain(params):
+            ET.SubElement(assets, "mesh", name=f"{link.name}_mesh", file=f"{link.name}.stl")
     ET.SubElement(
         root,
         "option",
@@ -225,11 +256,25 @@ def build_mjcf(params: ArmParams | None = None) -> str:
         ET.SubElement(
             body,
             "geom",
-            name=f"{link.name}_geom",
+            name=f"{link.name}_collision",
             type="capsule",
             fromto=f"0 0 0 {_vec(tip)}",
             size=_fmt(_LINK_THICKNESS_M / 2.0),
+            group="3",
+            rgba="0.8 0.3 0.3 0.25",
         )
+        if _meshes_available():
+            ET.SubElement(
+                body,
+                "geom",
+                name=f"{link.name}_visual",
+                type="mesh",
+                mesh=f"{link.name}_mesh",
+                contype="0",
+                conaffinity="0",
+                group="2",
+                rgba="0.62 0.66 0.72 1",
+            )
         parent = body
 
     # Matches the URDF's ee frame so both models measure the same point.

@@ -4,7 +4,12 @@
      Generator: src/arm/models.py  (run `just models`)
      Edits here are silently discarded on the next regeneration. -->
 <mujoco model="learn-arm-3dof">
-  <compiler angle="radian"/>
+  <compiler angle="radian" meshdir="../../cad/export"/>
+  <asset>
+    <mesh name="base_mesh" file="base.stl"/>
+    <mesh name="upper_arm_mesh" file="upper_arm.stl"/>
+    <mesh name="forearm_mesh" file="forearm.stl"/>
+  </asset>
   <option timestep="0.001" gravity="0 0 -9.81" integrator="implicitfast"/>
   <default>
     <geom rgba="0.5 0.6 0.7 1" contype="1" conaffinity="1"/>
@@ -14,16 +19,19 @@
     <geom name="floor" type="plane" size="1 1 0.05" rgba="0.25 0.26 0.28 1"/>
     <body name="base" pos="0 0 0">
       <joint name="base_yaw" type="hinge" axis="0 0 1" range="-3.0543 3.0543" armature="0.01" damping="0.05" frictionloss="0"/>
-      <inertial pos="0 0 0.0337042" mass="0.102206" diaginertia="7.32747e-05 6.68397e-05 3.91975e-05"/>
-      <geom name="base_geom" type="capsule" fromto="0 0 0 0 0 0.05" size="0.015"/>
+      <inertial pos="0 0 0.0339219" mass="0.101143" diaginertia="7.22714e-05 6.58364e-05 3.86065e-05"/>
+      <geom name="base_collision" type="capsule" fromto="0 0 0 0 0 0.05" size="0.015" group="3" rgba="0.8 0.3 0.3 0.25"/>
+      <geom name="base_visual" type="mesh" mesh="base_mesh" contype="0" conaffinity="0" group="2" rgba="0.62 0.66 0.72 1"/>
       <body name="upper_arm" pos="0 0 0.05">
         <joint name="shoulder_pitch" type="hinge" axis="0 -1 0" range="-1.5708 1.5708" armature="0.01" damping="0.05" frictionloss="0"/>
-        <inertial pos="0.0890101 0 0" mass="0.0963591" diaginertia="1.38028e-05 0.000303886 0.000307105"/>
-        <geom name="upper_arm_geom" type="capsule" fromto="0 0 0 0.15 0 0" size="0.015"/>
+        <inertial pos="0.0892845 0 0" mass="0.0945081" diaginertia="1.35365e-05 0.000298315 0.00030148"/>
+        <geom name="upper_arm_collision" type="capsule" fromto="0 0 0 0.15 0 0" size="0.015" group="3" rgba="0.8 0.3 0.3 0.25"/>
+        <geom name="upper_arm_visual" type="mesh" mesh="upper_arm_mesh" contype="0" conaffinity="0" group="2" rgba="0.62 0.66 0.72 1"/>
         <body name="forearm" pos="0.15 0 0">
           <joint name="elbow_pitch" type="hinge" axis="0 -1 0" range="-2.618 2.618" armature="0.004" damping="0.02" frictionloss="0"/>
-          <inertial pos="0.0656355 0 0" mass="0.0716836" diaginertia="1.0972e-05 0.000166706 0.000169242"/>
-          <geom name="forearm_geom" type="capsule" fromto="0 0 0 0.15 0 0" size="0.015"/>
+          <inertial pos="0.0656355 0 0" mass="0.0699903" diaginertia="1.07128e-05 0.000162768 0.000165244"/>
+          <geom name="forearm_collision" type="capsule" fromto="0 0 0 0.15 0 0" size="0.015" group="3" rgba="0.8 0.3 0.3 0.25"/>
+          <geom name="forearm_visual" type="mesh" mesh="forearm_mesh" contype="0" conaffinity="0" group="2" rgba="0.62 0.66 0.72 1"/>
           <site name="ee" pos="0.15 0 0" size="0.006"/>
         </body>
       </body>

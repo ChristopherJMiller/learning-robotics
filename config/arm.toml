@@ -34,7 +34,7 @@ forearm_m       = 0.150   # elbow axis to end-effector point
 # ---------------------------------------------------------------------------
 # Material, for turning CAD geometry into mass properties.
 #
-# PETG is 1270 kg/m3 solid. A printed part is not solid: it has walls and
+# PLA is 1240 kg/m3 solid. A printed part is not solid: it has walls and
 # infill, and the cad model here draws the walls explicitly but leaves the
 # cavity empty. infill_fraction accounts for what the slicer puts back into
 # that cavity. Both numbers are worth checking against a kitchen scale once a
@@ -43,8 +43,8 @@ forearm_m       = 0.150   # elbow axis to end-effector point
 # ---------------------------------------------------------------------------
 
 [material]
-name              = "PETG"
-density_kgm3      = 1270.0
+name              = "PLA"
+density_kgm3      = 1240.0
 infill_fraction   = 0.25
 
 # ---------------------------------------------------------------------------
@@ -55,23 +55,23 @@ infill_fraction   = 0.25
 
 [[links]]
 name         = "base"
-mass_kg      = 0.102206
-com_m        = [0, 0, 0.0337042]
-inertia_kgm2 = [7.32747e-05, 6.68397e-05, 3.91975e-05]   # diagonal [Ixx, Iyy, Izz]
+mass_kg      = 0.101143
+com_m        = [0, 0, 0.0339219]
+inertia_kgm2 = [7.22714e-05, 6.58364e-05, 3.86065e-05]   # diagonal [Ixx, Iyy, Izz]
 provenance   = "cad"
 
 [[links]]
 name         = "upper_arm"
-mass_kg      = 0.0963591                       # includes the elbow servo it carries
-com_m        = [0.0890101, 0, 0]
-inertia_kgm2 = [1.38028e-05, 0.000303886, 0.000307105]
+mass_kg      = 0.0945081                       # includes the elbow servo it carries
+com_m        = [0.0892845, 0, 0]
+inertia_kgm2 = [1.35365e-05, 0.000298315, 0.00030148]
 provenance   = "cad"
 
 [[links]]
 name         = "forearm"
-mass_kg      = 0.0716836
+mass_kg      = 0.0699903
 com_m        = [0.0656355, 0, 0]
-inertia_kgm2 = [1.0972e-05, 0.000166706, 0.000169242]
+inertia_kgm2 = [1.07128e-05, 0.000162768, 0.000165244]
 provenance   = "cad"
 
 # ---------------------------------------------------------------------------
