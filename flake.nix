@@ -5,7 +5,11 @@
 
   outputs = { self, nixpkgs }:
     let
-      systems = [ "x86_64-linux" "aarch64-linux" ];
+      # x86_64 only: the OpenCASCADE and Rerun wheels this flake patches are
+      # published for x86_64-linux alone, so an aarch64 shell could never build
+      # the CAD or viewer derivations. `nix flake check` was skipping it
+      # silently, which is worse than not claiming support.
+      systems = [ "x86_64-linux" ];
       forAllSystems = f: nixpkgs.lib.genAttrs systems (system: f system);
 
       pkgsFor = system: import nixpkgs {

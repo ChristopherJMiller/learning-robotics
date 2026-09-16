@@ -25,9 +25,20 @@ class MujocoArm:
         params: ArmParams | None = None,
         *,
         mjcf_path=None,
+        from_params: bool = False,
     ) -> None:
         self.params = params or default_params()
-        self.model = mujoco.MjModel.from_xml_path(str(mjcf_path or MJCF_PATH))
+
+        # By default the committed MJCF is loaded, so what runs is the artefact
+        # under version control and covered by the up-to-date test. Passing
+        # from_params compiles the given parameters directly instead, which is
+        # how experiments explore variants without touching the baseline.
+        if from_params:
+            from arm.models import build_mjcf
+
+            self.model = mujoco.MjModel.from_xml_string(build_mjcf(self.params))
+        else:
+            self.model = mujoco.MjModel.from_xml_path(str(mjcf_path or MJCF_PATH))
         self.data = mujoco.MjData(self.model)
 
         self._site_ee = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_SITE, "ee")

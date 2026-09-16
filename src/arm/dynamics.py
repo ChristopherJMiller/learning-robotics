@@ -43,15 +43,15 @@ def joint_damping() -> np.ndarray:
     return np.array([params.actuators[joint.actuator].damping_nms_rad for joint in params.joints])
 
 
-def joint_friction() -> np.ndarray:
+def joint_friction(params=None) -> np.ndarray:
     """Coulomb friction magnitudes, per joint (N·m)."""
-    params = default_params()
+    params = params or default_params()
     return np.array(
         [params.actuators[joint.actuator].coulomb_friction_nm for joint in params.joints]
     )
 
 
-def friction_torque(dq: np.ndarray, epsilon: float = 1e-3) -> np.ndarray:
+def friction_torque(dq: np.ndarray, epsilon: float = 1e-3, params=None) -> np.ndarray:
     """Coulomb friction: a constant torque opposing motion, independent of speed.
 
     Non-smooth at zero velocity, which is what makes it hard. ``sign`` is
@@ -63,7 +63,7 @@ def friction_torque(dq: np.ndarray, epsilon: float = 1e-3) -> np.ndarray:
     an integral term is still needed after gravity has been fed forward.
     """
     dq = np.asarray(dq, dtype=float)
-    return joint_friction() * np.tanh(dq / epsilon)
+    return joint_friction(params) * np.tanh(dq / epsilon)
 
 
 def damping_torque(dq: np.ndarray) -> np.ndarray:

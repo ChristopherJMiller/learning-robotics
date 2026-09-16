@@ -26,6 +26,7 @@ import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
 import rerun as rr
+import rerun.blueprint as rrb
 
 from arm.kinematics import fk_frames, fk_frames_relative
 from arm.params import REPO_ROOT, ArmParams, default_params
@@ -59,7 +60,30 @@ class Telemetry:
         rr.init(f"learn_robotics_{name}", spawn=spawn)
         if not spawn:
             rr.save(str(self.rrd_path))
+        self._send_blueprint()
         self.log_static_geometry()
+
+    def _send_blueprint(self) -> None:
+        """Put the 3D view and the error traces on screen together.
+
+        Without this the viewer opens on the 3D scene alone, and watching an
+        error converge means hunting for the right timeseries panel. The whole
+        reason to record scalars next to geometry is to see them at once.
+        """
+        blueprint = rrb.Horizontal(
+            rrb.Spatial3DView(name="arm", origin="/world"),
+            rrb.Vertical(
+                rrb.TimeSeriesView(name="tracking error", origin="/metrics"),
+                rrb.TextDocumentView(name="notes", origin="/notes"),
+                row_shares=[3, 1],
+            ),
+            column_shares=[3, 2],
+        )
+        rr.send_blueprint(blueprint)
+
+    def note(self, text: str) -> None:
+        """Pin a line of context into the recording itself."""
+        rr.log("notes", rr.TextDocument(text, media_type="text/markdown"), static=True)
 
     @property
     def rrd_path(self) -> Path:

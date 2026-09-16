@@ -30,6 +30,10 @@ models:
 track *ARGS:
     python scripts/sim_track.py {{ARGS}}
 
+# Encoder quantisation, velocity estimation, and friction dead zones.
+sensing *ARGS:
+    python scripts/sim_sensing.py {{ARGS}}
+
 # Watch the physics live in MuJoCo's own viewer (shows contacts and the floor).
 watch CONTROLLER="feedforward_pd":
     python scripts/sim_track.py --viewer --only {{CONTROLLER}} --seconds 20

@@ -165,6 +165,20 @@ class ArmParams(_Frozen):
             dtype=float,
         )
 
+    def with_friction(self, coulomb_nm: float) -> ArmParams:
+        """A copy with Coulomb friction set on every actuator.
+
+        The committed configuration keeps friction at zero so the simulator and
+        the controller's model stay provably equivalent -- that is what makes
+        the forward-dynamics agreement test meaningful. Experiments that *want*
+        a model gap build a variant instead of editing the baseline.
+        """
+        actuators = {
+            name: actuator.model_copy(update={"coulomb_friction_nm": coulomb_nm})
+            for name, actuator in self.actuators.items()
+        }
+        return self.model_copy(update={"actuators": actuators})
+
     def actuator_for(self, joint_name: str) -> Actuator:
         for joint in self.joints:
             if joint.name == joint_name:
