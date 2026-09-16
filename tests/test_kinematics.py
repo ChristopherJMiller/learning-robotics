@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-from conftest import joint_angles, nonsingular_joint_angles
 from hypothesis import given, settings
 
 from arm.kinematics import (
@@ -28,6 +27,7 @@ from arm.kinematics import (
     jacobian_det,
     manipulability,
 )
+from conftest import joint_angles, nonsingular_joint_angles
 
 SETTINGS = settings(max_examples=250, deadline=None)
 
@@ -40,9 +40,7 @@ SETTINGS = settings(max_examples=250, deadline=None)
 def test_zero_configuration_is_straight_out_along_x(params):
     length_base, length_upper, length_fore = params.link_lengths_m
     position = fk(np.zeros(3), params)
-    np.testing.assert_allclose(
-        position, [length_upper + length_fore, 0.0, length_base], atol=1e-12
-    )
+    np.testing.assert_allclose(position, [length_upper + length_fore, 0.0, length_base], atol=1e-12)
 
 
 def test_base_rotation_sweeps_the_plane(params):
@@ -75,7 +73,9 @@ def test_every_frame_is_a_valid_rigid_transform(q):
 
 @given(q=joint_angles())
 @SETTINGS
-def test_tip_stays_within_reach(q, ):
+def test_tip_stays_within_reach(
+    q,
+):
     from arm.params import default_params
 
     geometry = default_params().geometry
@@ -240,11 +240,28 @@ def test_manipulability_is_never_negative(q):
     assert manipulability(q) >= 0.0
 
 
-def test_manipulability_falls_off_approaching_a_singularity(params):
-    """Approaching a straight elbow, the measure decreases monotonically."""
-    values = [
-        manipulability(np.array([0.2, 0.3, angle]), params)
-        for angle in np.linspace(-1.2, -0.02, 12)
-    ]
-    assert all(later < earlier for earlier, later in zip(values, values[1:], strict=True))
-    assert values[-1] < 1e-3
+def test_manipulability_collapses_at_the_elbow_singularity(params):
+    """Manipulability vanishes as the elbow straightens -- but not monotonically.
+
+    Since |det J| = r * L1 * L2 * |sin(t3)|, straightening the elbow shrinks
+    |sin(t3)| while simultaneously *growing* r, because the arm reaches
+    further out. The product can therefore tick upward before it collapses,
+    so the honest property is the limit, not monotonicity.
+    """
+    angles = np.linspace(-1.2, -0.02, 12)
+    values = [manipulability(np.array([0.2, 0.3, a]), params) for a in angles]
+
+    # Well away from the singularity it is comfortably conditioned ...
+    assert values[0] > 1e-3
+    # ... and it has collapsed by two orders of magnitude on approach ...
+    assert values[-1] < values[0] / 30.0
+    # ... reaching zero when the elbow is straight. Note the tolerance: because
+    # manipulability is sqrt(det(J J^T)), the square root halves the available
+    # significant digits near zero, so a determinant good to ~1e-20 only yields
+    # ~1e-10 here. Use det(J) directly when you need a tight singularity test.
+    assert np.isclose(manipulability(np.array([0.2, 0.3, 0.0]), params), 0.0, atol=1e-8)
+    assert np.isclose(jacobian_det(np.array([0.2, 0.3, 0.0]), params), 0.0, atol=1e-15)
+
+    # The decline is monotonic over the final stretch, where sin(t3) dominates.
+    tail = values[3:]
+    assert all(later < earlier for earlier, later in zip(tail, tail[1:], strict=False))

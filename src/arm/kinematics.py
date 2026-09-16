@@ -28,7 +28,7 @@ returns a 3-vector position rather than a full SE(3) pose.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 
 import numpy as np
 
@@ -51,14 +51,14 @@ __all__ = [
 ]
 
 
-class Elbow(str, Enum):
+class Elbow(StrEnum):
     """Which of the two planar branches the elbow takes to reach a point."""
 
     UP = "up"
     DOWN = "down"
 
 
-class Shoulder(str, Enum):
+class Shoulder(StrEnum):
     """Whether the base faces the target or is flipped 180 degrees away."""
 
     FORWARD = "forward"
@@ -128,9 +128,7 @@ def fk_frames(q: np.ndarray, params: ArmParams | None = None) -> list[np.ndarray
         @ se3(np.eye(3), np.array([length_upper, 0.0, 0.0]))
     )
     t_ee = (
-        t_elbow
-        @ se3(rot_y(-t3), np.zeros(3))
-        @ se3(np.eye(3), np.array([length_fore, 0.0, 0.0]))
+        t_elbow @ se3(rot_y(-t3), np.zeros(3)) @ se3(np.eye(3), np.array([length_fore, 0.0, 0.0]))
     )
     return [t_base, t_shoulder, t_elbow, t_ee]
 
@@ -266,9 +264,9 @@ def ik(
             reach = -radius
 
         # Law of cosines on the planar two-link subproblem.
-        cos_t3 = (
-            reach**2 + height**2 - length_upper**2 - length_fore**2
-        ) / (2.0 * length_upper * length_fore)
+        cos_t3 = (reach**2 + height**2 - length_upper**2 - length_fore**2) / (
+            2.0 * length_upper * length_fore
+        )
 
         if cos_t3 > 1.0 + tolerance or cos_t3 < -1.0 - tolerance:
             continue  # target is outside this branch's annulus

@@ -1,0 +1,47 @@
+<?xml version="1.0"?>
+<!-- GENERATED FILE -- DO NOT EDIT.
+     Source:    config/arm.toml
+     Generator: src/arm/models.py  (run `just models`)
+     Edits here are silently discarded on the next regeneration. -->
+<mujoco model="learn-arm-3dof">
+  <compiler angle="radian"/>
+  <option timestep="0.002" gravity="0 0 -9.81" integrator="implicitfast"/>
+  <default>
+    <geom rgba="0.5 0.6 0.7 1" contype="1" conaffinity="1"/>
+    <joint damping="0.05" armature="0.01"/>
+  </default>
+  <worldbody>
+    <light pos="0 0 1.5" dir="0 0 -1" diffuse="0.8 0.8 0.8"/>
+    <geom name="floor" type="plane" size="1 1 0.05" rgba="0.25 0.26 0.28 1"/>
+    <body name="base" pos="0 0 0">
+      <joint name="base_yaw" type="hinge" axis="0 0 1" range="-3.0543 3.0543"/>
+      <inertial pos="0 0 0.025" mass="0.15" diaginertia="0.0001 0.0001 0.00015"/>
+      <geom name="base_geom" type="capsule" fromto="0 0 0 0 0 0.05" size="0.015"/>
+      <body name="upper_arm" pos="0 0 0.05">
+        <joint name="shoulder_pitch" type="hinge" axis="0 -1 0" range="-1.5708 1.5708"/>
+        <inertial pos="0.075 0 0" mass="0.12" diaginertia="3e-05 0.00025 0.00025"/>
+        <geom name="upper_arm_geom" type="capsule" fromto="0 0 0 0.15 0 0" size="0.015"/>
+        <body name="forearm" pos="0.15 0 0">
+          <joint name="elbow_pitch" type="hinge" axis="0 -1 0" range="-2.618 2.618"/>
+          <inertial pos="0.07 0 0" mass="0.08" diaginertia="2e-05 0.00015 0.00015"/>
+          <geom name="forearm_geom" type="capsule" fromto="0 0 0 0.15 0 0" size="0.015"/>
+          <site name="ee" pos="0.15 0 0" size="0.006"/>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+  <actuator>
+    <motor name="base_yaw_motor" joint="base_yaw" ctrlrange="-0.6 0.6" gear="1"/>
+    <motor name="shoulder_pitch_motor" joint="shoulder_pitch" ctrlrange="-0.6 0.6" gear="1"/>
+    <motor name="elbow_pitch_motor" joint="elbow_pitch" ctrlrange="-0.208 0.208" gear="1"/>
+  </actuator>
+  <sensor>
+    <jointpos name="base_yaw_pos" joint="base_yaw"/>
+    <jointvel name="base_yaw_vel" joint="base_yaw"/>
+    <jointpos name="shoulder_pitch_pos" joint="shoulder_pitch"/>
+    <jointvel name="shoulder_pitch_vel" joint="shoulder_pitch"/>
+    <jointpos name="elbow_pitch_pos" joint="elbow_pitch"/>
+    <jointvel name="elbow_pitch_vel" joint="elbow_pitch"/>
+    <framepos name="ee_pos" objtype="site" objname="ee"/>
+  </sensor>
+</mujoco>

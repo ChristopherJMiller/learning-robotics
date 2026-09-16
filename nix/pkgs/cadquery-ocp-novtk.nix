@@ -18,7 +18,13 @@
 , expat
 , zlib
 , onetbb
-, xorg
+, libx11
+, libxext
+, libxmu
+, libxi
+, libsm
+, libice
+, libxt
 , cadquery-ocp-proxy
 }:
 
@@ -48,13 +54,13 @@ buildPythonPackage rec {
     expat
     zlib
     onetbb
-    xorg.libX11
-    xorg.libXext
-    xorg.libXmu
-    xorg.libXi
-    xorg.libSM
-    xorg.libICE
-    xorg.libXt
+    libx11
+    libxext
+    libxmu
+    libxi
+    libsm
+    libice
+    libxt
   ];
 
   # The wheel ships its own bundled OCCT shared objects next to the extension

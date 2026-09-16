@@ -79,9 +79,7 @@ class Joint(_Frozen):
     @model_validator(mode="after")
     def _limits_ordered(self) -> Joint:
         if self.limit_lower_rad >= self.limit_upper_rad:
-            raise ValueError(
-                f"joint {self.name!r}: limit_lower_rad must be < limit_upper_rad"
-            )
+            raise ValueError(f"joint {self.name!r}: limit_lower_rad must be < limit_upper_rad")
         if not np.isclose(np.linalg.norm(self.axis), 1.0):
             raise ValueError(f"joint {self.name!r}: axis must be a unit vector")
         return self
@@ -134,8 +132,7 @@ class ArmParams(_Frozen):
         for joint in self.joints:
             if joint.actuator not in self.actuators:
                 raise ValueError(
-                    f"joint {joint.name!r} references unknown actuator "
-                    f"{joint.actuator!r}"
+                    f"joint {joint.name!r} references unknown actuator {joint.actuator!r}"
                 )
         return self
 

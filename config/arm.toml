@@ -60,7 +60,9 @@ provenance   = "estimate"
 
 # ---------------------------------------------------------------------------
 # Joints. Zero configuration is the arm extended straight out along +x,
-# horizontal. Positive theta2/theta3 lift the arm.
+# horizontal. Positive theta2/theta3 lift the arm -- which is rotation about
+# MINUS y, hence the axis sign below. This must agree with the rot_y(-theta)
+# in arm.kinematics; tests/test_model_consistency.py enforces that via Pinocchio.
 # ---------------------------------------------------------------------------
 
 [[joints]]
@@ -72,14 +74,14 @@ actuator        = "xl430"
 
 [[joints]]
 name            = "shoulder_pitch"
-axis            = [0.0, 1.0, 0.0]
+axis            = [0.0, -1.0, 0.0]
 limit_lower_rad = -1.5708   # -90 deg
 limit_upper_rad =  1.5708   # +90 deg
 actuator        = "xl430"
 
 [[joints]]
 name            = "elbow_pitch"
-axis            = [0.0, 1.0, 0.0]
+axis            = [0.0, -1.0, 0.0]
 limit_lower_rad = -2.6180   # -150 deg
 limit_upper_rad =  2.6180   # +150 deg
 actuator        = "xl330"

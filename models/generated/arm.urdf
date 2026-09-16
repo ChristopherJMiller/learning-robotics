@@ -1,0 +1,92 @@
+<?xml version="1.0"?>
+<!-- GENERATED FILE -- DO NOT EDIT.
+     Source:    config/arm.toml
+     Generator: src/arm/models.py  (run `just models`)
+     Edits here are silently discarded on the next regeneration. -->
+<robot name="learn-arm-3dof">
+  <link name="world"/>
+  <joint name="base_yaw" type="revolute">
+    <parent link="world"/>
+    <child link="base"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-3.0543" upper="3.0543" effort="0.6" velocity="5.97"/>
+  </joint>
+  <link name="base">
+    <inertial>
+      <origin xyz="0 0 0.025" rpy="0 0 0"/>
+      <mass value="0.15"/>
+      <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.00015"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0.025" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.03 0.03 0.05"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0.025" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.03 0.03 0.05"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="shoulder_pitch" type="revolute">
+    <parent link="base"/>
+    <child link="upper_arm"/>
+    <origin xyz="0 0 0.05" rpy="0 0 0"/>
+    <axis xyz="0 -1 0"/>
+    <limit lower="-1.5708" upper="1.5708" effort="0.6" velocity="5.97"/>
+  </joint>
+  <link name="upper_arm">
+    <inertial>
+      <origin xyz="0.075 0 0" rpy="0 0 0"/>
+      <mass value="0.12"/>
+      <inertia ixx="3e-05" ixy="0" ixz="0" iyy="0.00025" iyz="0" izz="0.00025"/>
+    </inertial>
+    <visual>
+      <origin xyz="0.075 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.15 0.03 0.03"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="0.075 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.15 0.03 0.03"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="elbow_pitch" type="revolute">
+    <parent link="upper_arm"/>
+    <child link="forearm"/>
+    <origin xyz="0.15 0 0" rpy="0 0 0"/>
+    <axis xyz="0 -1 0"/>
+    <limit lower="-2.618" upper="2.618" effort="0.208" velocity="10"/>
+  </joint>
+  <link name="forearm">
+    <inertial>
+      <origin xyz="0.07 0 0" rpy="0 0 0"/>
+      <mass value="0.08"/>
+      <inertia ixx="2e-05" ixy="0" ixz="0" iyy="0.00015" iyz="0" izz="0.00015"/>
+    </inertial>
+    <visual>
+      <origin xyz="0.075 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.15 0.03 0.03"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="0.075 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.15 0.03 0.03"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="ee_fixed" type="fixed">
+    <parent link="forearm"/>
+    <child link="ee"/>
+    <origin xyz="0.15 0 0" rpy="0 0 0"/>
+  </joint>
+  <link name="ee"/>
+</robot>

@@ -44,11 +44,11 @@
             libglvnd
             wayland
             libxkbcommon
-            xorg.libX11
-            xorg.libXcursor
-            xorg.libXrandr
-            xorg.libXinerama
-            xorg.libXi
+            libx11
+            libxcursor
+            libxrandr
+            libxinerama
+            libxi
           ];
 
           mkShell = { name, pythonPkgs, extraTools ? [ ] }:
@@ -73,7 +73,13 @@
           cad = mkShell {
             name = "learn-robotics-cad";
             pythonPkgs = cadPython;
-            extraTools = [ pkgs.freecad ];
+          };
+
+          # FreeCAD is used only to look at geometry build123d produced. It is
+          # kept out of the cad shell because its closure includes TeX Live.
+          viewer = pkgs.mkShell {
+            name = "learn-robotics-viewer";
+            packages = [ pkgs.freecad ];
           };
 
           # Electronics, much later.
