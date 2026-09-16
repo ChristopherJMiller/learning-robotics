@@ -34,9 +34,13 @@ class MujocoArm:
         # from_params compiles the given parameters directly instead, which is
         # how experiments explore variants without touching the baseline.
         if from_params:
-            from arm.models import build_mjcf
+            from arm.models import MESH_DIR, build_mjcf
 
-            self.model = mujoco.MjModel.from_xml_string(build_mjcf(self.params))
+            # Compiled from a string, so there is no file for a relative
+            # meshdir to be relative to; give MuJoCo an absolute one.
+            self.model = mujoco.MjModel.from_xml_string(
+                build_mjcf(self.params, meshdir=str(MESH_DIR))
+            )
         else:
             self.model = mujoco.MjModel.from_xml_path(str(mjcf_path or MJCF_PATH))
         self.data = mujoco.MjData(self.model)

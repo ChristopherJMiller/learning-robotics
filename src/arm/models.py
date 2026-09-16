@@ -184,11 +184,17 @@ def _urdf_link(robot: ET.Element, link, length: float, along: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-def build_mjcf(params: ArmParams | None = None) -> str:
+def build_mjcf(params: ArmParams | None = None, *, meshdir: str | None = None) -> str:
+    """Generate MJCF. ``meshdir`` defaults to the path relative to the written file.
+
+    A model compiled from a *string* has no file to be relative to, so
+    MuJoCo cannot resolve ``../../cad/export``. Callers that compile in memory
+    (``MujocoArm(from_params=True)``) must pass an absolute path instead.
+    """
     params = params or default_params()
     root = ET.Element("mujoco", model=params.meta.name)
 
-    ET.SubElement(root, "compiler", angle="radian", meshdir=MESH_RELATIVE)
+    ET.SubElement(root, "compiler", angle="radian", meshdir=meshdir or MESH_RELATIVE)
 
     # Visual meshes exported from the CAD. Collision stays on the capsules
     # below: convexified meshes are slower and buy nothing for an arm whose
