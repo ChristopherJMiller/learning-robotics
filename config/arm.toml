@@ -1,0 +1,115 @@
+# ============================================================================
+# Single source of truth for the arm.
+#
+# Nothing else in this repository may hard-code a length, mass or limit.
+# The CAD model, the generated URDF, the generated MJCF, the kinematics and
+# the hardware driver all read these numbers through arm.params.
+#
+# Every key carries its unit as a suffix. This is not decoration -- it is the
+# cheapest possible defence against the mm/m factor-of-1000 bug.
+# ============================================================================
+
+[meta]
+name = "learn-arm-3dof"
+description = "3-DOF articulated (RRR) arm: base yaw, shoulder pitch, elbow pitch"
+
+# ---------------------------------------------------------------------------
+# Geometry
+#
+#            elbow (j3)
+#               o---------------o  end effector
+#              /      L2
+#         L1  /
+#            o  shoulder (j2)
+#            |
+#            |  L0
+#         ===o===  base (j1, yaw)
+# ---------------------------------------------------------------------------
+
+[geometry]
+base_height_m   = 0.050   # base plate to shoulder axis
+upper_arm_m     = 0.150   # shoulder axis to elbow axis
+forearm_m       = 0.150   # elbow axis to end-effector point
+
+# ---------------------------------------------------------------------------
+# Links. Masses and inertias are ESTIMATES until the CAD model exists; they
+# are replaced by values computed from build123d geometry (see docs/00-stack.md).
+# com_m is expressed in that link's own frame.
+# ---------------------------------------------------------------------------
+
+[[links]]
+name         = "base"
+mass_kg      = 0.150
+com_m        = [0.0, 0.0, 0.025]
+inertia_kgm2 = [1.0e-4, 1.0e-4, 1.5e-4]   # diagonal [Ixx, Iyy, Izz]
+provenance   = "estimate"
+
+[[links]]
+name         = "upper_arm"
+mass_kg      = 0.120                       # includes the elbow servo it carries
+com_m        = [0.075, 0.0, 0.0]
+inertia_kgm2 = [3.0e-5, 2.5e-4, 2.5e-4]
+provenance   = "estimate"
+
+[[links]]
+name         = "forearm"
+mass_kg      = 0.080
+com_m        = [0.070, 0.0, 0.0]
+inertia_kgm2 = [2.0e-5, 1.5e-4, 1.5e-4]
+provenance   = "estimate"
+
+# ---------------------------------------------------------------------------
+# Joints. Zero configuration is the arm extended straight out along +x,
+# horizontal. Positive theta2/theta3 lift the arm.
+# ---------------------------------------------------------------------------
+
+[[joints]]
+name            = "base_yaw"
+axis            = [0.0, 0.0, 1.0]
+limit_lower_rad = -3.0543   # -175 deg
+limit_upper_rad =  3.0543   # +175 deg
+actuator        = "xl430"
+
+[[joints]]
+name            = "shoulder_pitch"
+axis            = [0.0, 1.0, 0.0]
+limit_lower_rad = -1.5708   # -90 deg
+limit_upper_rad =  1.5708   # +90 deg
+actuator        = "xl430"
+
+[[joints]]
+name            = "elbow_pitch"
+axis            = [0.0, 1.0, 0.0]
+limit_lower_rad = -2.6180   # -150 deg
+limit_upper_rad =  2.6180   # +150 deg
+actuator        = "xl330"
+
+# ---------------------------------------------------------------------------
+# Actuators -- Tier A, Dynamixel (see docs/adr/0001-actuator-tier-a-dynamixel.md).
+# Torque figures are datasheet stall values; derate before trusting them.
+# ---------------------------------------------------------------------------
+
+[actuators.xl430]
+model              = "XL430-W250-T"
+stall_torque_nm    = 1.5      # @ 12 V, 1.4 A
+no_load_speed_rads = 5.97     # 57 rpm
+encoder_counts_rev = 4096
+mass_kg            = 0.0572
+derate_factor      = 0.4      # continuous duty; never plan above this
+
+[actuators.xl330]
+model              = "XL330-M288-T"
+stall_torque_nm    = 0.52     # @ 5 V
+no_load_speed_rads = 10.0
+encoder_counts_rev = 4096
+mass_kg            = 0.018
+derate_factor      = 0.4
+
+# ---------------------------------------------------------------------------
+# Simulation / control
+# ---------------------------------------------------------------------------
+
+[sim]
+gravity_ms2  = [0.0, 0.0, -9.81]
+timestep_s   = 0.002          # 500 Hz physics
+control_hz   = 200            # Dynamixel bus realistically sustains this
