@@ -26,6 +26,18 @@ check:
 models:
     python scripts/gen_models.py
 
+# Track a trajectory; compares PD, gravity comp, feedforward, computed torque.
+track *ARGS:
+    python scripts/sim_track.py {{ARGS}}
+
+# Cartesian impedance: push the arm and watch it yield by exactly F/K.
+impedance *ARGS:
+    python scripts/sim_impedance.py {{ARGS}}
+
+# Hold a pose against gravity and compare PD with and without gravity comp.
+hold *ARGS:
+    python scripts/sim_hold.py {{ARGS}}
+
 # Drive the arm through a trajectory; writes runs/*.rrd + *.parquet.
 viz *ARGS:
     python scripts/viz_fk.py {{ARGS}}

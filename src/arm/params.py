@@ -92,6 +92,9 @@ class Actuator(_Frozen):
     encoder_counts_rev: int = Field(gt=0)
     mass_kg: float = Field(gt=0)
     derate_factor: float = Field(gt=0, le=1.0)
+    armature_kgm2: float = Field(ge=0)
+    damping_nms_rad: float = Field(ge=0)
+    coulomb_friction_nm: float = Field(ge=0, default=0.0)
 
     @property
     def continuous_torque_nm(self) -> float:
@@ -105,12 +108,24 @@ class Sim(_Frozen):
     control_hz: float = Field(gt=0)
 
     @model_validator(mode="after")
-    def _control_slower_than_physics(self) -> Sim:
-        if self.control_hz > 1.0 / self.timestep_s:
+    def _control_divides_physics(self) -> Sim:
+        physics_hz = 1.0 / self.timestep_s
+        if self.control_hz > physics_hz:
             raise ValueError(
                 f"control_hz ({self.control_hz}) exceeds the physics rate "
-                f"({1.0 / self.timestep_s:.0f} Hz); the controller cannot run "
-                "faster than the simulator steps"
+                f"({physics_hz:.0f} Hz); the controller cannot run faster than "
+                "the simulator steps"
+            )
+
+        # The simulator advances whole physics steps, so a control period that
+        # is not an integer number of them silently runs at a different rate
+        # than configured -- 200 Hz against a 2 ms step really becomes 250 Hz.
+        substeps = physics_hz / self.control_hz
+        if abs(substeps - round(substeps)) > 1e-9:
+            raise ValueError(
+                f"control_hz ({self.control_hz}) does not divide the physics "
+                f"rate ({physics_hz:.0f} Hz) evenly: {substeps:.3f} steps per "
+                "control period. Choose rates whose ratio is a whole number."
             )
         return self
 

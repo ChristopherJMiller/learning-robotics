@@ -43,3 +43,22 @@ def nonsingular_joint_angles(margin: float = 0.15) -> st.SearchStrategy[np.ndarr
     return joint_angles().filter(
         lambda q: abs(np.sin(q[2])) > margin and np.hypot(*fk(q)[:2]) > margin * 0.5
     )
+
+
+def collision_free_joint_angles(clearance_m: float = 0.005) -> st.SearchStrategy:
+    """Configurations that are inside the joint limits *and* above the floor.
+
+    A surprisingly large part of the joint-limit box puts the arm through the
+    ground: the limits constrain each joint independently, but the floor is a
+    constraint on the whole chain. Any comparison against a model with no
+    collision geometry -- Pinocchio, for instance -- must exclude these, because
+    MuJoCo will be applying contact forces the other engine cannot know about.
+
+    The exclusion is not a workaround. It is the difference between the
+    articulated dynamics and the constrained dynamics.
+    """
+    from arm.kinematics import fk_frames
+
+    return joint_angles().filter(
+        lambda q: min(frame[2, 3] for frame in fk_frames(q)[1:]) > clearance_m
+    )

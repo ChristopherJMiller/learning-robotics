@@ -12,7 +12,8 @@ adopted at the point they solve a problem we have, not up front.
 | Validation oracles | Pinocchio, MuJoCo | **in use** |
 | Model formats | generated URDF + MJCF | **in use** |
 | Introspection | Rerun + parquet | **in use** |
-| Simulation | MuJoCo | packaged, not yet driven |
+| Simulation | MuJoCo | **in use** |
+| Control | feedforward PD, impedance | **in use** |
 | CAD | build123d | packaged, unused |
 | Middleware | Zenoh | not yet — see below |
 | Electronics | KiCad | not yet |

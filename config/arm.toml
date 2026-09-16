@@ -98,6 +98,18 @@ no_load_speed_rads = 5.97     # 57 rpm
 encoder_counts_rev = 4096
 mass_kg            = 0.0572
 derate_factor      = 0.4      # continuous duty; never plan above this
+# Reflected rotor inertia: J_rotor * gear_ratio^2. At ~258:1 this DOMINATES the
+# link inertia it drives -- roughly 3x at the shoulder here. MuJoCo calls it
+# "armature". Omitting it from the controller's model while the simulator has
+# it makes computed-torque control invert the wrong dynamics.
+armature_kgm2      = 0.010    # estimate; a system-identification target
+damping_nms_rad    = 0.050    # viscous gearbox friction; also an estimate
+# Coulomb (dry) friction: a constant torque opposing motion regardless of speed.
+# Real for a geared servo and the dominant unmodelled effect on hardware. Kept
+# at zero here so the simulator and the controller's model stay exactly
+# equivalent; raise it to create a deliberate sim-to-real gap and watch what an
+# integral term has to do about it.
+coulomb_friction_nm = 0.0
 
 [actuators.xl330]
 model              = "XL330-M288-T"
@@ -106,6 +118,9 @@ no_load_speed_rads = 10.0
 encoder_counts_rev = 4096
 mass_kg            = 0.018
 derate_factor      = 0.4
+armature_kgm2      = 0.004    # estimate; lighter rotor than the XL430
+damping_nms_rad    = 0.020    # estimate
+coulomb_friction_nm = 0.0
 
 # ---------------------------------------------------------------------------
 # Simulation / control
@@ -113,5 +128,5 @@ derate_factor      = 0.4
 
 [sim]
 gravity_ms2  = [0.0, 0.0, -9.81]
-timestep_s   = 0.002          # 500 Hz physics
+timestep_s   = 0.001          # 1 kHz physics; must be an integer multiple of control_hz
 control_hz   = 200            # Dynamixel bus realistically sustains this

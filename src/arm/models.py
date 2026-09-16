@@ -176,7 +176,8 @@ def build_mjcf(params: ArmParams | None = None) -> str:
 
     defaults = ET.SubElement(root, "default")
     ET.SubElement(defaults, "geom", rgba="0.5 0.6 0.7 1", contype="1", conaffinity="1")
-    ET.SubElement(defaults, "joint", damping="0.05", armature="0.01")
+    # No default joint block: armature and damping are per-actuator and are
+    # written onto each joint from config/arm.toml.
 
     worldbody = ET.SubElement(root, "worldbody")
     ET.SubElement(worldbody, "light", pos="0 0 1.5", dir="0 0 -1", diffuse="0.8 0.8 0.8")
@@ -193,7 +194,12 @@ def build_mjcf(params: ArmParams | None = None) -> str:
     parent = worldbody
 
     for joint, link, origin, length, along in _chain(params):
+        actuator = params.actuators[joint.actuator]
         body = ET.SubElement(parent, "body", name=link.name, pos=_vec(origin))
+        # armature and damping come from the actuator, never from a hard-coded
+        # default: the controller's model reads the same numbers out of the same
+        # TOML, and a value only one engine knows about silently makes them
+        # different robots.
         ET.SubElement(
             body,
             "joint",
@@ -201,6 +207,9 @@ def build_mjcf(params: ArmParams | None = None) -> str:
             type="hinge",
             axis=_vec(joint.axis),
             range=f"{_fmt(joint.limit_lower_rad)} {_fmt(joint.limit_upper_rad)}",
+            armature=_fmt(actuator.armature_kgm2),
+            damping=_fmt(actuator.damping_nms_rad),
+            frictionloss=_fmt(actuator.coulomb_friction_nm),
         )
         ixx, iyy, izz = link.inertia_kgm2
         ET.SubElement(
