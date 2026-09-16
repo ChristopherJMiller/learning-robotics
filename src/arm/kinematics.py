@@ -119,9 +119,19 @@ def fk_frames(q: np.ndarray, params: ArmParams | None = None) -> list[np.ndarray
 
     t_base = np.eye(4)
     t_shoulder = t_base @ se3(rot_z(t1), np.array([0.0, 0.0, length_base]))
-    t_elbow = t_shoulder @ se3(rot_y(-t2), np.array([length_upper, 0.0, 0.0]))
-    t_ee = t_elbow @ se3(rot_y(-t3), np.array([length_fore, 0.0, 0.0]))
-
+    # se3(R, p) maps v -> R@v + p, i.e. p is measured in the PARENT frame.
+    # A link offset must therefore be rotated into place before it is applied:
+    # rotate about the joint axis first, then translate along the new x axis.
+    t_elbow = (
+        t_shoulder
+        @ se3(rot_y(-t2), np.zeros(3))
+        @ se3(np.eye(3), np.array([length_upper, 0.0, 0.0]))
+    )
+    t_ee = (
+        t_elbow
+        @ se3(rot_y(-t3), np.zeros(3))
+        @ se3(np.eye(3), np.array([length_fore, 0.0, 0.0]))
+    )
     return [t_base, t_shoulder, t_elbow, t_ee]
 
 

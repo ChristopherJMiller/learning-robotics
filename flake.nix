@@ -120,7 +120,7 @@
       packages = forAllSystems (system:
         let pyPkgs = (pkgsFor system).python313Packages;
         in {
-          inherit (pyPkgs) cadquery-ocp-novtk ocpsvg ocp-gordon trianglesolver lib3mf build123d;
+          inherit (pyPkgs) cadquery-ocp-proxy cadquery-ocp-novtk ocpsvg ocp-gordon trianglesolver lib3mf build123d;
         });
     };
 }

@@ -4,12 +4,16 @@
 final: prev: {
   pythonPackagesExtensions = prev.pythonPackagesExtensions ++ [
     (pyfinal: pyprev: {
+      cadquery-ocp-proxy = pyfinal.callPackage ./pkgs/cadquery-ocp-proxy.nix { };
       cadquery-ocp-novtk = pyfinal.callPackage ./pkgs/cadquery-ocp-novtk.nix { };
       trianglesolver     = pyfinal.callPackage ./pkgs/trianglesolver.nix { };
       ocpsvg             = pyfinal.callPackage ./pkgs/ocpsvg.nix { };
       ocp-gordon         = pyfinal.callPackage ./pkgs/ocp-gordon.nix { };
       lib3mf             = pyfinal.callPackage ./pkgs/lib3mf.nix { };
-      build123d          = pyfinal.callPackage ./pkgs/build123d.nix { };
+      webcolors_24       = pyfinal.callPackage ./pkgs/webcolors-24.nix { };
+      build123d          = pyfinal.callPackage ./pkgs/build123d.nix {
+        webcolors = pyfinal.webcolors_24;
+      };
     })
   ];
 }

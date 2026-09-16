@@ -17,8 +17,9 @@
 , freetype
 , expat
 , zlib
-, tbb_2021
+, onetbb
 , xorg
+, cadquery-ocp-proxy
 }:
 
 let
@@ -36,6 +37,8 @@ buildPythonPackage rec {
 
   nativeBuildInputs = [ autoPatchelfHook ];
 
+  propagatedBuildInputs = [ cadquery-ocp-proxy ];
+
   buildInputs = [
     stdenv.cc.cc.lib
     libGL
@@ -44,7 +47,7 @@ buildPythonPackage rec {
     freetype
     expat
     zlib
-    tbb_2021
+    onetbb
     xorg.libX11
     xorg.libXext
     xorg.libXmu
