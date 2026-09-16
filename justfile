@@ -26,9 +26,13 @@ check:
 models:
     python scripts/gen_models.py
 
-# Drive the arm through a trajectory and log it to Rerun.
-viz:
-    python scripts/viz_fk.py
+# Drive the arm through a trajectory; writes runs/*.rrd + *.parquet.
+viz *ARGS:
+    python scripts/viz_fk.py {{ARGS}}
+
+# Same, but open the Rerun viewer live.
+viz-live:
+    python scripts/viz_fk.py --spawn
 
 # Build the CAD dependency chain (slow the first time).
 cad-build:
