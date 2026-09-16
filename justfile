@@ -34,6 +34,10 @@ viz *ARGS:
 viz-live:
     python scripts/viz_fk.py --spawn
 
+# Open a previously recorded run in the viewer.
+view RUN="fk_sweep":
+    rerun runs/{{RUN}}.rrd
+
 # Build the CAD dependency chain (slow the first time).
 cad-build:
     nix build .#build123d --print-build-logs

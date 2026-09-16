@@ -2,6 +2,10 @@
 # None of these exist upstream; each is a normal derivation (binary wheels are
 # handled with autoPatchelfHook, never an FHS environment).
 final: prev: {
+  # Version-matched Rerun viewer; see nix/pkgs/rerun-cli.nix for why nixpkgs'
+  # own `rerun` cannot be used here.
+  rerun-cli = final.callPackage ./pkgs/rerun-cli.nix { };
+
   pythonPackagesExtensions = prev.pythonPackagesExtensions ++ [
     (pyfinal: pyprev: {
       cadquery-ocp-proxy = pyfinal.callPackage ./pkgs/cadquery-ocp-proxy.nix { };

@@ -8,14 +8,13 @@ things:
 * ``runs/<name>.parquet`` -- a flat numeric table. This is how *tests* (and an
   agent, which cannot see a GUI) assert that what the arm did was correct.
 
-A note on why both exist. Rerun ships a dataframe query API that can read an
-``.rrd`` back into Pandas, which would make the second sink unnecessary. It is
-not present in the nixpkgs build of ``rerun-sdk`` 0.37.2 used here -- there is
-no ``rerun.dataframe`` module, and the bundled ``rerun`` CLI shim is broken
-(``rerun_cli`` is missing, and the standalone nixpkgs ``rerun`` is 0.27.2,
-mismatched against the SDK). Writing the table ourselves costs a few lines and
-removes the dependency on that API entirely, which makes the tests more stable
-rather than less.
+A note on why both exist. Rerun documents a dataframe query API that can read
+an ``.rrd`` back into Pandas, which would make the second sink unnecessary. It
+is not reachable as ``rerun.dataframe`` in 0.37.2 -- that module is absent from
+the official upstream wheel, not merely from the nixpkgs build, so the API has
+moved since the version those docs describe. Writing the table ourselves costs
+a few lines, removes the dependency on an API that has already relocated once,
+and keeps the assertions stable across SDK upgrades.
 """
 
 from __future__ import annotations

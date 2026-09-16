@@ -54,7 +54,10 @@
           mkShell = { name, pythonPkgs, extraTools ? [ ] }:
             pkgs.mkShell {
               inherit name;
-              packages = [ (python.withPackages pythonPkgs) ] ++ commonTools ++ extraTools;
+              packages =
+                [ pkgs.rerun-cli (python.withPackages pythonPkgs) ]
+                ++ commonTools
+                ++ extraTools;
               env.LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath graphicsLibs;
               shellHook = ''
                 export PYTHONPATH="$PWD/src''${PYTHONPATH:+:$PYTHONPATH}"
@@ -124,8 +127,11 @@
       # Individual CAD packages, exposed so they can be built and cached on
       # their own: `nix build .#cadquery-ocp-novtk`
       packages = forAllSystems (system:
-        let pyPkgs = (pkgsFor system).python313Packages;
+        let
+          pkgs = pkgsFor system;
+          pyPkgs = pkgs.python313Packages;
         in {
+          inherit (pkgs) rerun-cli;
           inherit (pyPkgs) cadquery-ocp-proxy cadquery-ocp-novtk ocpsvg ocp-gordon trianglesolver lib3mf build123d;
         });
     };
