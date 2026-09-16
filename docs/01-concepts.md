@@ -81,6 +81,40 @@ If the inner indices do not match, the expression is a bug. Most robotics
 defects are frame defects, and this convention makes a large class of them
 visible by reading. Implemented in `arm.frames`.
 
+### Absolute vs. relative transforms
+
+The convention above says *which frames* a transform relates. It does not say
+whether a transform is **absolute** (relative to the world) or **relative to a
+parent**, and that distinction has its own failure mode.
+
+`fk_frames` returns absolute poses -- `T_base_shoulder`, `T_base_elbow`,
+`T_base_ee` -- which is what you want for computing where things are.
+
+A **transform hierarchy** wants the opposite. Rerun's entity tree, tf2, and a
+URDF joint chain all store each node *in its parent* and compose back down the
+tree themselves:
+
+```
+world/base                     <- T_base_shoulder
+world/base/upper_arm           <- T_shoulder_elbow      (NOT T_base_elbow)
+world/base/upper_arm/forearm   <- T_elbow_ee            (NOT T_base_ee)
+```
+
+Feed absolute poses into a hierarchy and the consumer multiplies them together.
+For `q = (0.3, 0.6, -1.2)` that put the tip at `(0.199, 0.225, 0.360)` instead
+of `(0.237, 0.073, 0.050)` -- the arm rendered at impossible angles while every
+number computed elsewhere stayed perfectly correct.
+
+**Nothing can catch this for you.** Both are `np.ndarray` of shape (4, 4). The
+types are identical, no exception is raised, and the error appears only in a
+picture. `arm.kinematics.fk_frames_relative` exists to name the difference, and
+`tests/test_kinematics.py` pins the contract: composing the relative chain must
+reproduce the absolute frames and land on `fk(q)`.
+
+The general lesson is the one that motivates this whole section -- when a
+distinction matters but the type system cannot see it, **the distinction has to
+live in a name and be enforced by a test.**
+
 ### Why orientation is awkward
 
 Orientation genuinely has 3 DOF, but there is no clean way to write it as three
