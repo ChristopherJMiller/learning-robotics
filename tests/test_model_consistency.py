@@ -136,3 +136,50 @@ def test_fk_agrees_with_mujoco(mj, q):
     data.qpos[:] = q
     mujoco.mj_kinematics(model, data)
     np.testing.assert_allclose(data.site_xpos[site], fk(q), atol=1e-9)
+
+
+# --------------------------------------------------------------------------
+# Collision geometry
+# --------------------------------------------------------------------------
+
+
+def test_no_spurious_contacts_in_the_nominal_workspace(mj):
+    """The arm must not be permanently touching something.
+
+    It was. The base collision capsule ran from z=0 upward, and a capsule's
+    hemispherical cap extends a full radius past its endpoint, so it sat 15 mm
+    inside the floor -- a contact constraint solved on every step of every
+    simulation. Replacing capsules with boxes sized to the printed section
+    fixed the geometry; excluding the bolted-down pedestal from floor contact
+    fixed the remaining coincident-surface case.
+    """
+    model, data, _ = mj
+    centre = np.array([0.0, 0.9, -0.7])
+    amplitude = np.array([0.6, 0.30, 0.35])
+
+    for t in np.linspace(0.0, 1.0, 120):
+        phase = 2.0 * np.pi * t
+        data.qpos[:] = centre + amplitude * np.sin(phase)
+        mujoco.mj_forward(model, data)
+        assert data.ncon == 0, (
+            f"unexpected contact at q={np.round(data.qpos, 3)}: {data.ncon} contact(s)"
+        )
+
+
+def test_collision_geoms_are_boxes_not_capsules(mj):
+    """Capsules overhang their endpoints by a radius; boxes do not."""
+    model, _, _ = mj
+    for index in range(model.ngeom):
+        name = mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_GEOM, index)
+        if name and name.endswith("_collision"):
+            assert model.geom_type[index] == mujoco.mjtGeom.mjGEOM_BOX, name
+
+
+def test_visual_geometry_does_not_collide(mj):
+    """Meshes are for looking at; collision stays on the simple proxies."""
+    model, _, _ = mj
+    for index in range(model.ngeom):
+        name = mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_GEOM, index)
+        if name and name.endswith("_visual"):
+            assert model.geom_contype[index] == 0, name
+            assert model.geom_conaffinity[index] == 0, name

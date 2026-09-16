@@ -41,10 +41,38 @@ _BANNER = (
     "     Edits here are silently discarded on the next regeneration. "
 )
 
-# Placeholder visual/collision geometry, replaced by build123d meshes once the
-# CAD model exists. Kept deliberately crude so nobody mistakes it for real.
-_LINK_THICKNESS_M = 0.030
-LINK_RADIUS_M = _LINK_THICKNESS_M / 2.0
+# Collision geometry. These mirror the printed cross-section in cad/links.py;
+# tests/test_cad.py asserts they stay in step, because models.py cannot import
+# from cad/ (build123d is not in the default shell).
+#
+# Boxes rather than capsules, deliberately. A capsule has hemispherical caps, so
+# one running from z=0 upwards extends a full radius *below* its start -- the
+# base capsule sat 15 mm inside the floor and MuJoCo resolved a contact
+# constraint on every step of every simulation. A box matches a rectangular
+# printed beam anyway; the 15 mm capsule radius was simultaneously wider than
+# the part is tall and narrower than it is wide.
+SECTION_WIDTH_M = 0.030
+SECTION_HEIGHT_M = 0.022
+_LINK_THICKNESS_M = SECTION_WIDTH_M
+LINK_RADIUS_M = SECTION_HEIGHT_M / 2.0
+
+
+def _collision_box(length: float, along: str):
+    """Half-extents and centre of a link's collision box, in its own frame.
+
+    Sized to the printed section and centred on the link, so it never reaches
+    past the joint at either end -- which is what made the previous capsules
+    intersect the floor and each other.
+    """
+    if along == "z":
+        return (
+            (SECTION_WIDTH_M / 2, SECTION_WIDTH_M / 2, length / 2),
+            (0.0, 0.0, length / 2),
+        )
+    return (
+        (length / 2, SECTION_WIDTH_M / 2, SECTION_HEIGHT_M / 2),
+        (length / 2, 0.0, 0.0),
+    )
 
 
 def _meshes_available() -> bool:
@@ -156,12 +184,8 @@ def _urdf_link(robot: ET.Element, link, length: float, along: str) -> None:
         izz=_fmt(izz),
     )
 
-    size = (
-        (_LINK_THICKNESS_M, _LINK_THICKNESS_M, length)
-        if along == "z"
-        else (length, _LINK_THICKNESS_M, _LINK_THICKNESS_M)
-    )
-    centre = (0.0, 0.0, length / 2.0) if along == "z" else (length / 2.0, 0.0, 0.0)
+    half, centre = _collision_box(length, along)
+    size = tuple(2.0 * h for h in half)
 
     visual = ET.SubElement(element, "visual")
     if _meshes_available():
@@ -258,14 +282,14 @@ def build_mjcf(params: ArmParams | None = None, *, meshdir: str | None = None) -
             diaginertia=f"{_fmt(ixx)} {_fmt(iyy)} {_fmt(izz)}",
         )
 
-        tip = (0.0, 0.0, length) if along == "z" else (length, 0.0, 0.0)
+        half, centre = _collision_box(length, along)
         ET.SubElement(
             body,
             "geom",
             name=f"{link.name}_collision",
-            type="capsule",
-            fromto=f"0 0 0 {_vec(tip)}",
-            size=_fmt(_LINK_THICKNESS_M / 2.0),
+            type="box",
+            pos=_vec(centre),
+            size=_vec(half),
             group="3",
             rgba="0.8 0.3 0.3 0.25",
         )
@@ -299,6 +323,15 @@ def build_mjcf(params: ArmParams | None = None, *, meshdir: str | None = None) -
             ctrlrange=f"{_fmt(-limit)} {_fmt(limit)}",
             gear="1",
         )
+
+    # The pedestal is bolted to the surface it stands on, and its only freedom
+    # is rotation about z -- so contact between it and the floor can never do
+    # anything except cost solver time. Its bottom face sits exactly on the
+    # floor plane, which produced four coincident-surface contacts on every
+    # step of every simulation.
+    contacts = ET.SubElement(root, "contact")
+    base_link = _chain(params)[0][1]
+    ET.SubElement(contacts, "exclude", body1="world", body2=base_link.name)
 
     sensors = ET.SubElement(root, "sensor")
     for joint, *_ in _chain(params):

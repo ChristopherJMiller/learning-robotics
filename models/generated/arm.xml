@@ -20,17 +20,17 @@
     <body name="base" pos="0 0 0">
       <joint name="base_yaw" type="hinge" axis="0 0 1" range="-3.0543 3.0543" armature="0.01" damping="0.05" frictionloss="0"/>
       <inertial pos="0 0 0.0339219" mass="0.101143" diaginertia="7.22714e-05 6.58364e-05 3.86065e-05"/>
-      <geom name="base_collision" type="capsule" fromto="0 0 0 0 0 0.05" size="0.015" group="3" rgba="0.8 0.3 0.3 0.25"/>
+      <geom name="base_collision" type="box" pos="0 0 0.025" size="0.015 0.015 0.025" group="3" rgba="0.8 0.3 0.3 0.25"/>
       <geom name="base_visual" type="mesh" mesh="base_mesh" contype="0" conaffinity="0" group="2" rgba="0.62 0.66 0.72 1"/>
       <body name="upper_arm" pos="0 0 0.05">
         <joint name="shoulder_pitch" type="hinge" axis="0 -1 0" range="-1.5708 1.5708" armature="0.01" damping="0.05" frictionloss="0"/>
         <inertial pos="0.0892845 0 0" mass="0.0945081" diaginertia="1.35365e-05 0.000298315 0.00030148"/>
-        <geom name="upper_arm_collision" type="capsule" fromto="0 0 0 0.15 0 0" size="0.015" group="3" rgba="0.8 0.3 0.3 0.25"/>
+        <geom name="upper_arm_collision" type="box" pos="0.075 0 0" size="0.075 0.015 0.011" group="3" rgba="0.8 0.3 0.3 0.25"/>
         <geom name="upper_arm_visual" type="mesh" mesh="upper_arm_mesh" contype="0" conaffinity="0" group="2" rgba="0.62 0.66 0.72 1"/>
         <body name="forearm" pos="0.15 0 0">
           <joint name="elbow_pitch" type="hinge" axis="0 -1 0" range="-2.618 2.618" armature="0.004" damping="0.02" frictionloss="0"/>
           <inertial pos="0.0656355 0 0" mass="0.0699903" diaginertia="1.07128e-05 0.000162768 0.000165244"/>
-          <geom name="forearm_collision" type="capsule" fromto="0 0 0 0.15 0 0" size="0.015" group="3" rgba="0.8 0.3 0.3 0.25"/>
+          <geom name="forearm_collision" type="box" pos="0.075 0 0" size="0.075 0.015 0.011" group="3" rgba="0.8 0.3 0.3 0.25"/>
           <geom name="forearm_visual" type="mesh" mesh="forearm_mesh" contype="0" conaffinity="0" group="2" rgba="0.62 0.66 0.72 1"/>
           <site name="ee" pos="0.15 0 0" size="0.006"/>
         </body>
@@ -42,6 +42,9 @@
     <motor name="shoulder_pitch_motor" joint="shoulder_pitch" ctrlrange="-0.6 0.6" gear="1"/>
     <motor name="elbow_pitch_motor" joint="elbow_pitch" ctrlrange="-0.208 0.208" gear="1"/>
   </actuator>
+  <contact>
+    <exclude body1="world" body2="base"/>
+  </contact>
   <sensor>
     <jointpos name="base_yaw_pos" joint="base_yaw"/>
     <jointvel name="base_yaw_vel" joint="base_yaw"/>

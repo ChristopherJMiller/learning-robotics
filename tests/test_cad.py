@@ -150,3 +150,17 @@ def test_mass_properties_scale_linearly_with_density():
 def test_combine_rejects_massless_input():
     with pytest.raises(ValueError, match="no mass"):
         combine([MassProperties(0.0, 0.0, np.zeros(3), np.zeros((3, 3)))])
+
+
+def test_collision_boxes_match_the_printed_section():
+    """models.py duplicates the cross-section because it cannot import cad/.
+
+    build123d is not in the default shell, so the generator carries its own
+    copy of the section dimensions. This is the test that stops the two
+    drifting apart.
+    """
+    import links as cad_links
+    from arm import models
+
+    assert models.SECTION_WIDTH_M == cad_links.SECTION_WIDTH_M
+    assert models.SECTION_HEIGHT_M == cad_links.SECTION_HEIGHT_M
