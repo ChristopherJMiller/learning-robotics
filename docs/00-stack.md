@@ -14,7 +14,7 @@ adopted at the point they solve a problem we have, not up front.
 | Introspection | Rerun + parquet | **in use** |
 | Simulation | MuJoCo | **in use** |
 | Control | feedforward PD, impedance | **in use** |
-| CAD | build123d | packaged, unused |
+| CAD | build123d | **in use** — inertials derived |
 | Middleware | Zenoh | not yet — see below |
 | Electronics | KiCad | not yet |
 | Firmware | none | **by design** — see actuators |

@@ -32,6 +32,22 @@ upper_arm_m     = 0.150   # shoulder axis to elbow axis
 forearm_m       = 0.150   # elbow axis to end-effector point
 
 # ---------------------------------------------------------------------------
+# Material, for turning CAD geometry into mass properties.
+#
+# PETG is 1270 kg/m3 solid. A printed part is not solid: it has walls and
+# infill, and the cad model here draws the walls explicitly but leaves the
+# cavity empty. infill_fraction accounts for what the slicer puts back into
+# that cavity. Both numbers are worth checking against a kitchen scale once a
+# real part exists -- weighing a print is the cheapest system identification
+# there is.
+# ---------------------------------------------------------------------------
+
+[material]
+name              = "PETG"
+density_kgm3      = 1270.0
+infill_fraction   = 0.25
+
+# ---------------------------------------------------------------------------
 # Links. Masses and inertias are ESTIMATES until the CAD model exists; they
 # are replaced by values computed from build123d geometry (see docs/00-stack.md).
 # com_m is expressed in that link's own frame.
@@ -39,24 +55,24 @@ forearm_m       = 0.150   # elbow axis to end-effector point
 
 [[links]]
 name         = "base"
-mass_kg      = 0.150
-com_m        = [0.0, 0.0, 0.025]
-inertia_kgm2 = [1.0e-4, 1.0e-4, 1.5e-4]   # diagonal [Ixx, Iyy, Izz]
-provenance   = "estimate"
+mass_kg      = 0.102206
+com_m        = [0, 0, 0.0337042]
+inertia_kgm2 = [7.32747e-05, 6.68397e-05, 3.91975e-05]   # diagonal [Ixx, Iyy, Izz]
+provenance   = "cad"
 
 [[links]]
 name         = "upper_arm"
-mass_kg      = 0.120                       # includes the elbow servo it carries
-com_m        = [0.075, 0.0, 0.0]
-inertia_kgm2 = [3.0e-5, 2.5e-4, 2.5e-4]
-provenance   = "estimate"
+mass_kg      = 0.0963591                       # includes the elbow servo it carries
+com_m        = [0.0890101, 0, 0]
+inertia_kgm2 = [1.38028e-05, 0.000303886, 0.000307105]
+provenance   = "cad"
 
 [[links]]
 name         = "forearm"
-mass_kg      = 0.080
-com_m        = [0.070, 0.0, 0.0]
-inertia_kgm2 = [2.0e-5, 1.5e-4, 1.5e-4]
-provenance   = "estimate"
+mass_kg      = 0.0716836
+com_m        = [0.0656355, 0, 0]
+inertia_kgm2 = [1.0972e-05, 0.000166706, 0.000169242]
+provenance   = "cad"
 
 # ---------------------------------------------------------------------------
 # Joints. Zero configuration is the arm extended straight out along +x,

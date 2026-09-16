@@ -7,3 +7,8 @@ result
 result-*
 runs/
 *.rrd
+
+# Exported meshes and solids: derived from cad/links.py, large, and not
+# reviewable in a diff. Unlike the generated URDF and MJCF, which are small,
+# text, and committed precisely so parameter changes show up in review.
+cad/export/

@@ -102,6 +102,12 @@ class Actuator(_Frozen):
         return self.stall_torque_nm * self.derate_factor
 
 
+class Material(_Frozen):
+    name: str
+    density_kgm3: float = Field(gt=0)
+    infill_fraction: float = Field(ge=0, le=1.0)
+
+
 class Sim(_Frozen):
     gravity_ms2: tuple[float, float, float]
     timestep_s: float = Field(gt=0)
@@ -133,6 +139,7 @@ class Sim(_Frozen):
 class ArmParams(_Frozen):
     meta: Meta
     geometry: Geometry
+    material: Material
     links: tuple[Link, ...]
     joints: tuple[Joint, ...]
     actuators: dict[str, Actuator]

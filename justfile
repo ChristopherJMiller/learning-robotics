@@ -10,13 +10,13 @@ test *ARGS:
 
 # Lint and format check.
 lint:
-    ruff check src tests scripts
-    ruff format --check src tests scripts
+    ruff check src tests scripts cad
+    ruff format --check src tests scripts cad
 
 # Apply formatting.
 fmt:
-    ruff format src tests scripts
-    ruff check --fix src tests scripts
+    ruff format src tests scripts cad
+    ruff check --fix src tests scripts cad
 
 # Everything CI would run, hermetically.
 check:
@@ -57,6 +57,19 @@ viz-live:
 # Open a previously recorded run in the viewer.
 view RUN="fk_sweep":
     rerun runs/{{RUN}}.rrd
+
+# Recompute link mass properties from the CAD (dry run).
+cad-props:
+    nix develop .#cad --command python scripts/cad_update_params.py
+
+# Recompute and write them into config/arm.toml, then regenerate the models.
+cad-sync:
+    nix develop .#cad --command python scripts/cad_update_params.py --write
+    just models
+
+# Export STEP and STL for every link.
+cad-export:
+    nix develop .#cad --command python scripts/cad_export.py
 
 # Build the CAD dependency chain (slow the first time).
 cad-build:

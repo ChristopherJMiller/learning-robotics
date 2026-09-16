@@ -22,3 +22,4 @@ reason, so that a future reader can tell a deliberate choice from an accident.
 | [0004](adr/0004-hand-derived-kinematics.md) | Derive kinematics by hand; use a library for dynamics |
 | [0005](adr/0005-rerun-viewer-from-wheel.md) | Extract a version-matched Rerun viewer from the upstream wheel |
 | [0006](adr/0006-feedforward-over-computed-torque.md) | Feedforward PD as the default controller, not computed torque |
+| [0007](adr/0007-cad-derived-inertials.md) | Link inertials come from CAD, not from estimates |

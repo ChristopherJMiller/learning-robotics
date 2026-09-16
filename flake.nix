@@ -122,13 +122,33 @@
             installPhase = "touch $out";
           };
 
+          # The CAD tests need build123d, which is not in the default shell.
+          # Without this they would be skipped everywhere and "skipped" would
+          # quietly mean "never run".
+          cad-tests = pkgs.stdenv.mkDerivation {
+            name = "learn-robotics-cad-tests";
+            src = ./.;
+            nativeBuildInputs = [
+              (python.withPackages (ps: with ps; [
+                numpy scipy pydantic pytest hypothesis build123d
+              ]))
+            ];
+            buildPhase = ''
+              export PYTHONPATH="$PWD/src:$PWD/cad:$PYTHONPATH"
+              export HOME=$TMPDIR
+              export HYPOTHESIS_STORAGE_DIRECTORY="$TMPDIR/hypothesis"
+              pytest -q tests/test_cad.py
+            '';
+            installPhase = "touch $out";
+          };
+
           lint = pkgs.runCommand "learn-robotics-lint" { nativeBuildInputs = [ pkgs.ruff ]; } ''
             cd ${./.}
             # The source is a read-only store path, and ruff defaults to writing
             # its cache beside the files it lints. Point it somewhere writable.
             export RUFF_CACHE_DIR="$TMPDIR/ruff-cache"
-            ruff check src tests scripts
-            ruff format --check src tests scripts
+            ruff check src tests scripts cad
+            ruff format --check src tests scripts cad
             touch $out
           '';
         });
