@@ -32,7 +32,7 @@ from enum import StrEnum
 
 import numpy as np
 
-from arm.frames import rot_y, rot_z, se3, wrap_to_pi
+from arm.frames import inverse, rot_y, rot_z, se3, wrap_to_pi
 from arm.params import ArmParams, default_params
 
 __all__ = [
@@ -42,6 +42,7 @@ __all__ = [
     "denominator_det",
     "fk",
     "fk_frames",
+    "fk_frames_relative",
     "ik",
     "ik_nearest",
     "jacobian",
@@ -312,3 +313,22 @@ def ik_nearest(
     if not candidates:
         return None
     return min(candidates, key=lambda s: float(np.linalg.norm(s.q - q_current)))
+
+
+def fk_frames_relative(q: np.ndarray, params: ArmParams | None = None) -> list[np.ndarray]:
+    """Each frame relative to its **parent**, rather than to the world.
+
+    ``fk_frames`` returns absolute ``T_base_x`` poses, which is what you want
+    for computing positions. A *transform hierarchy* -- Rerun's entity tree, or
+    tf2, or a URDF joint chain -- wants the opposite: each node expressed in its
+    parent, because the consumer composes them back down the tree itself.
+
+    Feeding absolute transforms into a hierarchy is a real and easy mistake:
+    the consumer multiplies them together, so the forearm ends up at
+    ``T_shoulder @ T_elbow @ T_ee`` and the arm renders at impossible angles
+    while the numbers elsewhere stay perfectly correct.
+
+    Returns ``[T_base_shoulder, T_shoulder_elbow, T_elbow_ee]``.
+    """
+    absolute = fk_frames(q, params)
+    return [inverse(absolute[index]) @ absolute[index + 1] for index in range(len(absolute) - 1)]

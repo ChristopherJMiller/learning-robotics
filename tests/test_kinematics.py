@@ -21,6 +21,7 @@ from arm.kinematics import (
     Elbow,
     fk,
     fk_frames,
+    fk_frames_relative,
     ik,
     ik_nearest,
     jacobian,
@@ -265,3 +266,41 @@ def test_manipulability_collapses_at_the_elbow_singularity(params):
     # The decline is monotonic over the final stretch, where sin(t3) dominates.
     tail = values[3:]
     assert all(later < earlier for earlier, later in zip(tail, tail[1:], strict=False))
+
+
+# --------------------------------------------------------------------------
+# Transform hierarchy contract
+# --------------------------------------------------------------------------
+
+
+@given(q=joint_angles())
+@SETTINGS
+def test_relative_frames_compose_back_to_absolute(q):
+    """Composing the relative chain must reproduce the absolute frames.
+
+    This is the contract every transform hierarchy relies on -- Rerun's entity
+    tree, tf2, a URDF joint chain. It is stated as a test because absolute and
+    relative transforms have identical types: both are 4x4 arrays, so nothing
+    else can tell them apart.
+
+    Passing absolute poses where relative ones are expected is a real bug that
+    produces no error and no wrong numbers anywhere else -- only a robot drawn
+    at impossible angles, because the consumer multiplies the poses together.
+    """
+    absolute = fk_frames(q)
+    relative = fk_frames_relative(q)
+
+    composed = np.eye(4)
+    for step, parent_to_child in enumerate(relative, start=1):
+        composed = composed @ parent_to_child
+        np.testing.assert_allclose(composed, absolute[step], atol=1e-12)
+
+
+@given(q=joint_angles())
+@SETTINGS
+def test_composed_hierarchy_reaches_the_end_effector(q):
+    """The full chain composed from relatives must land on fk(q)."""
+    composed = np.eye(4)
+    for parent_to_child in fk_frames_relative(q):
+        composed = composed @ parent_to_child
+    np.testing.assert_allclose(composed[:3, 3], fk(q), atol=1e-12)

@@ -61,3 +61,41 @@ def test_logged_metrics_match_recomputation(tmp_path, params):
     for index in range(10):
         q = np.array([table[f"q{axis}"][index] for axis in range(3)])
         assert np.isclose(table["det_jacobian"][index], jacobian_det(q, params))
+
+
+def test_log_arm_uses_relative_transforms(tmp_path, params, monkeypatch):
+    """The .rrd is the sink no other test reads, so pin what it receives.
+
+    The parquet table was correct while the recording was wrong, which is
+    precisely why this needs its own assertion: capture what log_arm hands to
+    Rerun and confirm the composed chain lands on fk(q).
+    """
+    import rerun as rr
+
+    captured: list[tuple[str, object]] = []
+    real_log = rr.log
+
+    def spy(path, *args, **kwargs):
+        captured.append((path, args[0] if args else None))
+        return real_log(path, *args, **kwargs)
+
+    monkeypatch.setattr(rr, "log", spy)
+
+    q = np.array([0.4, 0.5, -1.1])
+    with Telemetry("transforms", params, directory=tmp_path) as log:
+        log.at(0.0)
+        log.log_arm(q)
+
+    from arm.kinematics import fk_frames_relative
+    from arm.telemetry import _JOINT_PATHS
+
+    logged = [path for path, _ in captured]
+    for path in _JOINT_PATHS:
+        assert path in logged, f"{path} was never logged"
+
+    # What was logged must be the relative chain, not the absolute one.
+    expected = fk_frames_relative(q, params)
+    composed = np.eye(4)
+    for parent_to_child in expected:
+        composed = composed @ parent_to_child
+    np.testing.assert_allclose(composed[:3, 3], fk(q, params), atol=1e-12)

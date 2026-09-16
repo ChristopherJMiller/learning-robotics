@@ -27,12 +27,13 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import rerun as rr
 
-from arm.kinematics import fk_frames
+from arm.kinematics import fk_frames, fk_frames_relative
 from arm.params import REPO_ROOT, ArmParams, default_params
 
 RUNS_DIR = REPO_ROOT / "runs"
 TIMELINE = "sim_time"
 
+_LINK_THICKNESS_M = 0.030
 _JOINT_PATHS = ["world/base", "world/base/upper_arm", "world/base/upper_arm/forearm"]
 
 
@@ -58,6 +59,7 @@ class Telemetry:
         rr.init(f"learn_robotics_{name}", spawn=spawn)
         if not spawn:
             rr.save(str(self.rrd_path))
+        self.log_static_geometry()
 
     @property
     def rrd_path(self) -> Path:
@@ -74,24 +76,52 @@ class Telemetry:
 
     # -- 3D ------------------------------------------------------------------
 
+    def log_static_geometry(self) -> None:
+        """Draw the links once, as geometry in each frame's own coordinates.
+
+        Each entity inherits its parent's transform, so a box logged here moves
+        with the arm without being re-logged every tick. Note the negative
+        offsets: every frame sits at its link's *distal* joint, so the link
+        extends backwards towards its parent.
+        """
+        length_base, length_upper, length_fore = self.params.link_lengths_m
+        half = _LINK_THICKNESS_M / 2.0
+
+        spans = [
+            (_JOINT_PATHS[0], (0.0, 0.0, -length_base / 2.0), (half, half, length_base / 2.0)),
+            (_JOINT_PATHS[1], (-length_upper / 2.0, 0.0, 0.0), (length_upper / 2.0, half, half)),
+            (_JOINT_PATHS[2], (-length_fore / 2.0, 0.0, 0.0), (length_fore / 2.0, half, half)),
+        ]
+        for path, centre, half_size in spans:
+            rr.log(
+                f"{path}/link",
+                rr.Boxes3D(centers=[centre], half_sizes=[half_size]),
+                static=True,
+            )
+
     def log_arm(self, q: np.ndarray) -> None:
         """Log the kinematic chain as a transform hierarchy plus a skeleton.
 
-        Logging each joint as a ``Transform3D`` on a nested entity path is the
-        visualisation equivalent of tf2: Rerun composes them down the tree, so
-        child geometry inherits its parent's pose automatically.
+        Transforms are logged **relative to each parent**, because Rerun
+        composes them down the entity tree -- the same contract tf2 uses.
+        Logging absolute poses here silently multiplies them together.
         """
-        frames = fk_frames(q, self.params)
+        relative = fk_frames_relative(q, self.params)
 
-        for path, transform in zip(_JOINT_PATHS, frames[1:], strict=True):
+        for path, transform in zip(_JOINT_PATHS, relative, strict=True):
             rr.log(
                 path,
                 rr.Transform3D(translation=transform[:3, 3], mat3x3=transform[:3, :3]),
             )
 
-        points = np.array([frame[:3, 3] for frame in frames])
-        rr.log("world/skeleton", rr.LineStrips3D([points], radii=0.006))
+        absolute = fk_frames(q, self.params)
+        points = np.array([frame[:3, 3] for frame in absolute])
+        rr.log("world/skeleton", rr.LineStrips3D([points], radii=0.004))
         rr.log("world/ee", rr.Points3D([points[-1]], radii=0.012))
+
+    def log_target(self, target: np.ndarray) -> None:
+        """Log the commanded point, for comparison against where the tip went."""
+        rr.log("world/target", rr.Points3D([np.asarray(target, dtype=float)], radii=0.008))
 
     def log_scalars(self, **values: float) -> None:
         for key, value in values.items():
