@@ -113,3 +113,23 @@ def inverse_dynamics(q: np.ndarray, dq: np.ndarray, ddq: np.ndarray) -> np.ndarr
             np.asarray(ddq, dtype=float),
         )
     ).copy()
+
+
+def forward_dynamics(q: np.ndarray, dq: np.ndarray, tau: np.ndarray) -> np.ndarray:
+    """Acceleration produced by a torque (ABA) -- the inverse of :func:`inverse_dynamics`.
+
+    This is what the simulator does internally, and running it in the estimator
+    is what lets a Kalman filter predict with the arm's real dynamics instead of
+    assuming constant velocity. Damping is subtracted because the plant applies
+    it as a passive force.
+    """
+    model, data = _model()
+    return np.asarray(
+        pinocchio.aba(
+            model,
+            data,
+            np.asarray(q, dtype=float),
+            np.asarray(dq, dtype=float),
+            np.asarray(tau, dtype=float) - damping_torque(dq),
+        )
+    ).copy()

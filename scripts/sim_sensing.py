@@ -11,9 +11,17 @@ and differentiation turns a small position quantum into a large velocity one:
 against a 0.6 N.m continuous limit. Roughly a third of the actuator spent on
 quantisation noise.
 
-The second half adds Coulomb friction, which the controller's model does not
-have. That is a deliberate sim-to-real gap, and it is the situation integral
-action exists for.
+Three parts:
+
+1. What quantisation costs, and how five estimators trade error against command
+   chatter. The Kalman filter derives its gains from that 1.534 mrad rather than
+   having them chosen, and predicting with the arm's dynamics rather than
+   assuming constant velocity recovers almost all of the lost accuracy.
+2. What that model-based prediction costs when the model is wrong -- Coulomb
+   friction the estimator does not know about makes it worse than the filter
+   that never trusted a model.
+3. Holding a pose against that friction, where it creates a dead zone that
+   feedforward cannot close and integral action can only hunt around.
 
     just sensing
 """
@@ -27,7 +35,13 @@ import numpy as np
 from arm.control import Integrator, JointGains, feedforward_pd
 from arm.kinematics import fk
 from arm.params import default_params
-from arm.sensing import AlphaBeta, FilteredDifference, FiniteDifference, SensedArm
+from arm.sensing import (
+    AlphaBeta,
+    FilteredDifference,
+    FiniteDifference,
+    KalmanVelocity,
+    SensedArm,
+)
 from arm.sim import MujocoArm
 from arm.telemetry import Telemetry
 from arm.trajectory import Setpoint, sinusoid
@@ -160,27 +174,81 @@ def main() -> int:
         ("quantised + finite difference", True, FiniteDifference()),
         ("quantised + low-pass 40 Hz", True, FilteredDifference(cutoff_hz=40.0)),
         ("quantised + low-pass 10 Hz", True, FilteredDifference(cutoff_hz=10.0)),
-        ("quantised + alpha-beta", True, AlphaBeta()),
+        ("quantised + alpha-beta (guessed)", True, AlphaBeta()),
+        (
+            "quantised + alpha-beta (derived)",
+            True,
+            AlphaBeta(alpha=0.770, beta=0.542),
+        ),
+        ("quantised + kalman, kinematic", True, KalmanVelocity()),
+        (
+            "quantised + kalman, model-based",
+            True,
+            KalmanVelocity(process_accel_std=10.0, use_model=True),
+        ),
     ]
     for label, sensed, estimator in cases:
         rms, chatter = run(label, sensed=sensed, estimator=estimator, seconds=args.seconds)
         print(f"{label:<38} {rms * 1000:>8.3f} mm {chatter * 1000:>8.2f} mNm")
 
     print(
-        "\nThere is no best row, only a frontier. Raw differencing actually tracks"
-        "\nbest of the quantised options -- but at ~24x the command chatter, and"
-        "\nchatter is what heats motors, wears gears and excites resonances. It is"
-        "\nthe column that rules it out, not the error."
+        "\nAmong the purely kinematic estimators there is no best row, only a"
+        "\nfrontier. Raw differencing tracks best of those -- but at ~24x the command"
+        "\nchatter, and chatter is what heats motors, wears gears and excites"
+        "\nresonances. It is that column which rules it out, not the error."
         "\n"
         "\nFiltering buys smoothness with delay, and delay costs phase margin, which"
-        "\nis why a 10 Hz cutoff is quieter *and worse*. The alpha-beta filter beats"
-        "\nthat trade because it predicts forward with a motion model rather than"
-        "\nsmoothing a derivative after the fact -- about half the error at"
-        "\ncomparable smoothness. Give its gains a noise model instead of choosing"
-        "\nthem and it becomes a Kalman filter."
+        "\nis why a 10 Hz cutoff is quieter *and worse*. Predicting forward with a"
+        "\nmotion model beats that trade outright."
+        "\n"
+        "\nThe two alpha-beta rows are the same filter with different gains. The"
+        "\nfirst pair I chose by eye; the second the Kalman filter derives from the"
+        "\nencoder datasheet (R = d^2/12, no tuning) -- and the kinematic Kalman row"
+        "\nmatches it, because at steady state they are literally the same filter."
+        "\n"
+        "\nThe model-based row is the real result. Predicting with the arm's"
+        "\ndynamics instead of assuming constant velocity recovers almost everything"
+        "\nquantisation took away, at a quarter of the command chatter."
     )
 
-    print("\n\nPART 2 - holding a pose with Coulomb friction\n")
+    print("\n\nPART 2 - what a model-based estimator costs when the model is wrong\n")
+    print(f"{'friction':>9} {'alpha-beta':>13} {'KF kinematic':>14} {'KF model-based':>16}")
+    print("-" * 58)
+    for friction in (0.0, 0.02, 0.05):
+        without, _ = run(
+            "ab",
+            sensed=True,
+            estimator=AlphaBeta(alpha=0.770, beta=0.542),
+            friction_nm=friction,
+            seconds=3.0,
+        )
+        kinematic, _ = run(
+            "kk", sensed=True, estimator=KalmanVelocity(), friction_nm=friction, seconds=3.0
+        )
+        modelled, _ = run(
+            "km",
+            sensed=True,
+            estimator=KalmanVelocity(process_accel_std=10.0, use_model=True),
+            friction_nm=friction,
+            seconds=3.0,
+        )
+        print(
+            f"{friction:>7.2f}Nm {without * 1000:>10.3f} mm "
+            f"{kinematic * 1000:>11.3f} mm {modelled * 1000:>13.3f} mm"
+        )
+
+    print(
+        "\nThe model-based filter wins decisively when its model is right and loses"
+        "\nwhen it is wrong -- worse than the kinematic filter, which never trusted a"
+        "\nmodel in the first place. Raising process_accel_std to admit the model is"
+        "\nunreliable recovers part of it but never all, and the reason matters: Q"
+        "\ndescribes zero-mean noise, while friction is a systematic bias that always"
+        "\nopposes motion. No value of Q can represent a bias. The fixes are to"
+        "\nidentify the friction and model it, or to estimate it as an augmented"
+        "\nstate -- not to keep turning knobs."
+    )
+
+    print("\n\nPART 3 - holding a pose with Coulomb friction\n")
     kp = 8.0
     print(f"{'friction':>9} {'dead zone':>11} {'no integral':>13} {'+ integral':>12}")
     print("-" * 50)
