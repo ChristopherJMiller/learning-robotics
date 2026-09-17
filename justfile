@@ -42,6 +42,10 @@ cspace *ARGS:
 plan *ARGS:
     python scripts/plan_compare.py {{ARGS}}
 
+# The whole pipeline: plan a route, time it, and drive the arm along it.
+execute *ARGS:
+    python scripts/plan_execute.py {{ARGS}}
+
 # Watch the physics live in MuJoCo's own viewer (shows contacts and the floor).
 watch CONTROLLER="feedforward_pd":
     python scripts/sim_track.py --viewer --only {{CONTROLLER}} --seconds 20
