@@ -244,6 +244,88 @@ def test_rrt_star_gains_little_from_shortcutting(checker):
 # --------------------------------------------------------------------------
 
 
+# --------------------------------------------------------------------------
+# What actually makes rewiring worth paying for
+# --------------------------------------------------------------------------
+
+
+def _wall(params):
+    """A low wall across the workspace, leaving a route over it and around it."""
+    from arm.params import Obstacle
+
+    posts = []
+    for index, radius in enumerate((0.10, 0.16, 0.22, 0.28)):
+        posts.append(
+            Obstacle(
+                name=f"w{index}",
+                pos_m=(0.0, radius, 0.06),
+                half_size_m=(0.020, 0.020, 0.06),
+            )
+        )
+    return params.with_obstacles(posts)
+
+
+def test_collision_checker_respects_the_params_it_is_given(params):
+    """A regression test for a bug that silently invalidated an experiment.
+
+    CollisionChecker used to load the committed MJCF regardless of the
+    parameters passed to it, so a world with extra obstacles was checked
+    against the old one. A clutter comparison returned byte-identical numbers
+    for one obstacle and for seven, which is what gave it away.
+    """
+    import mujoco
+
+    checker = CollisionChecker(_wall(params))
+    names = {
+        mujoco.mj_id2name(checker.model, mujoco.mjtObj.mjOBJ_GEOM, i)
+        for i in range(checker.model.ngeom)
+    }
+    assert "obstacle_w3" in names
+    assert "obstacle_post" not in names
+
+
+def test_a_wall_creates_distinct_routes(params):
+    """The property that makes rewiring pay, stated as a measurement.
+
+    A single post leaves essentially one sensible way around, so every seed
+    finds roughly the same path. A wall offers a choice -- over the top, or
+    around the end -- and RRT commits to whichever it stumbles into, so its
+    path lengths spread out across seeds.
+
+    That spread is the thing shortcutting cannot fix, because it can only
+    polish the route it was handed.
+    """
+    one_post = CollisionChecker(params)
+    wall = CollisionChecker(_wall(params))
+
+    def spread(checker) -> float:
+        lengths = []
+        for seed in range(8):
+            result = rrt(START, GOAL, checker, seed=seed, max_iterations=8000)
+            if result.found:
+                lengths.append(path_length(shortcut(result.path, checker, seed=seed)))
+        return max(lengths) / min(lengths)
+
+    assert spread(wall) > spread(one_post)
+
+
+def test_rewiring_helps_more_when_routes_differ(params):
+    """More obstacles is not the point; different routes is the point."""
+    wall = CollisionChecker(_wall(params))
+
+    plain, starred = [], []
+    for seed in range(6):
+        result = rrt(START, GOAL, wall, seed=seed, max_iterations=8000)
+        if result.found:
+            plain.append(path_length(shortcut(result.path, wall, seed=seed)))
+        best = rrt_star(START, GOAL, wall, max_iterations=1200, seed=seed)
+        if best.found:
+            starred.append(path_length(shortcut(best.path, wall, seed=seed)))
+
+    assert plain and starred
+    assert np.mean(starred) < np.mean(plain)
+
+
 def test_path_length_of_a_straight_line_is_the_distance():
     start, end = np.zeros(3), np.array([0.3, 0.4, 0.0])
     midpoint = (start + end) / 2

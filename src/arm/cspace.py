@@ -57,7 +57,15 @@ class CollisionChecker:
 
     def __init__(self, params: ArmParams | None = None) -> None:
         self.params = params or default_params()
-        arm = MujocoArm(self.params)
+
+        # Compiled from the parameters rather than loaded from the committed
+        # MJCF. Those are equivalent for the default configuration -- a test
+        # asserts the committed file matches what the generator produces -- but
+        # not for a variant. Loading the file regardless meant a checker handed
+        # a world with extra obstacles silently checked against the old one, and
+        # a clutter experiment returned identical numbers for one obstacle and
+        # for seven.
+        arm = MujocoArm(self.params, from_params=True)
         self.model = arm.model
         self.data = arm.data
         self.limits = self.params.joint_limits_rad

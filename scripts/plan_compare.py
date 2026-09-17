@@ -23,6 +23,7 @@ import time
 import numpy as np
 
 from arm.cspace import CollisionChecker
+from arm.params import Obstacle, default_params
 from arm.planning import path_length, rrt, rrt_star, shortcut
 
 # Reaching to either side of the post: bearing 65 and 115 degrees.
@@ -143,12 +144,96 @@ def main() -> int:
             "\nfind the short one. RRT* can still escape that."
         )
 
+    clutter_experiment(args.seeds)
+
     print(
         "\nNote what is *not* being compared: neither path is a trajectory yet."
         "\nBoth are geometric, with no timing, and torque feasibility cannot even be"
         "\nasked until they are time-parameterised."
     )
     return 0
+
+
+def _post(name, bearing_deg, radius, centre_z, half_xy=0.020, half_z=None):
+    angle = np.radians(bearing_deg)
+    return Obstacle(
+        name=name,
+        pos_m=(radius * np.cos(angle), radius * np.sin(angle), centre_z),
+        half_size_m=(half_xy, half_xy, half_z if half_z is not None else centre_z),
+    )
+
+
+def clutter_experiment(seeds: int) -> None:
+    """Does a harder world make rewiring worth it?
+
+    The obvious guess is that more obstacles favour RRT*. The measurement says
+    something more specific: what matters is not how many obstacles there are
+    but whether they create genuinely *different routes*.
+    """
+    base = default_params()
+    worlds = {
+        "one post": [_post("p0", 90, 0.19, 0.11)],
+        "three posts in a line": [
+            _post("p0", 90, 0.12, 0.11),
+            _post("p1", 90, 0.19, 0.11),
+            _post("p2", 90, 0.26, 0.11),
+        ],
+        "a low wall": [
+            _post(f"w{i}", 90, radius, 0.06, 0.020, 0.06)
+            for i, radius in enumerate((0.10, 0.16, 0.22, 0.28))
+        ],
+    }
+
+    print("\n\nDoes clutter change the answer?\n")
+    print(f"{'world':<24} {'blocked':>8} {'rrt+sc':>8} {'rrt*+sc':>8} {'gap':>7} {'spread':>8}")
+    print("-" * 68)
+
+    for name, obstacles in worlds.items():
+        checker = CollisionChecker(base.with_obstacles(obstacles))
+        if not (checker.is_valid(START) and checker.is_valid(GOAL)):
+            print(f"{name:<24} endpoints not valid in this world")
+            continue
+
+        rng = np.random.default_rng(0)
+        samples = rng.uniform(checker.limits[:, 0], checker.limits[:, 1], size=(2500, 3))
+        blocked = float(np.mean([checker.in_collision(q) for q in samples]))
+
+        plain, starred = [], []
+        for seed in range(seeds):
+            result = rrt(START, GOAL, checker, seed=seed, max_iterations=8000)
+            if result.found:
+                plain.append(path_length(shortcut(result.path, checker, seed=seed)))
+            best = rrt_star(START, GOAL, checker, max_iterations=1500, seed=seed)
+            if best.found:
+                starred.append(path_length(shortcut(best.path, checker, seed=seed)))
+
+        if not plain or not starred:
+            print(f"{name:<24} no solutions found")
+            continue
+
+        plain_array = np.array(plain)
+        gap = 100 * (plain_array.mean() - np.mean(starred)) / plain_array.mean()
+        spread = plain_array.max() / plain_array.min()
+        print(
+            f"{name:<24} {100 * blocked:>7.1f}% {plain_array.mean():>8.3f} "
+            f"{np.mean(starred):>8.3f} {gap:>6.1f}% {spread:>7.2f}x"
+        )
+
+    print(
+        "\nThe guess that more obstacles favour rewiring is right, but not for the"
+        "\nreason it sounds like. Three posts in a line are more obstacles than one"
+        "\nand do not help much: they block the same route, so there is still only"
+        "\none sensible way round and nothing for rewiring to choose between."
+        "\n"
+        "\nThe wall does help, because it creates genuinely *different* routes -- over"
+        "\nthe top, or around the end -- of different quality. The 'spread' column is"
+        "\nthe evidence: RRT's longest path is nearly twice its shortest, meaning"
+        "\ndifferent seeds are committing to different routes. Shortcutting then"
+        "\npolishes whichever one it was handed and cannot switch, while RRT* keeps"
+        "\nimproving globally and migrates toward the better one."
+        "\n"
+        "\nSo the thing that makes rewiring worth paying for is topology, not count."
+    )
 
 
 if __name__ == "__main__":

@@ -201,6 +201,17 @@ class ArmParams(_Frozen):
         }
         return self.model_copy(update={"actuators": actuators})
 
+    def with_obstacles(self, obstacles) -> ArmParams:
+        """A copy with a different set of obstacles.
+
+        For exploring worlds without editing the committed one, the same way
+        :meth:`with_friction` explores plant variants. Note that
+        ``arm.cspace.CollisionChecker`` compiles its model from parameters
+        rather than loading the committed MJCF, precisely so a variant like this
+        actually takes effect.
+        """
+        return self.model_copy(update={"obstacles": tuple(obstacles)})
+
     def actuator_for(self, joint_name: str) -> Actuator:
         for joint in self.joints:
             if joint.name == joint_name:
