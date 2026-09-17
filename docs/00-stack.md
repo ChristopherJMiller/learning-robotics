@@ -14,10 +14,16 @@ adopted at the point they solve a problem we have, not up front.
 | Introspection | Rerun + parquet | **in use** |
 | Simulation | MuJoCo | **in use** |
 | Control | feedforward PD, impedance | **in use** |
+| Sensing | encoder model + Kalman filter | **in use** |
+| Planning | RRT, RRT\*, shortcutting | **in use** |
+| Trajectories | spline + TOPP | **in use** |
 | CAD | build123d | **in use** — inertials derived |
+| Hardware driver | none | **the next gap** |
+| Safety | none | **the next gap** |
 | Middleware | Zenoh | not yet — see below |
 | Electronics | KiCad | not yet |
 | Firmware | none | **by design** — see actuators |
+| Perception | none | not yet — see below |
 
 ---
 
@@ -147,6 +153,44 @@ keeps assertions stable across SDK upgrades.
 The viewer itself needed packaging: see
 [adr/0005](adr/0005-rerun-viewer-from-wheel.md).
 
+## Sensing: model what the controller is actually allowed to know
+
+Every result up to a point read exact joint angles and velocities straight out
+of the simulator. Hardware provides neither: a Dynamixel reports position from a
+4096-count encoder and **does not measure velocity at all**.
+
+`arm.sensing` puts that between the simulator and the controller —
+quantisation, plus a choice of velocity estimator. `SensedArm` is itself an
+`ArmBackend`, so the abstraction built for swapping simulation and hardware took
+a sensing model without any controller noticing.
+
+The cost is larger than it looks. Differentiating the encoder quantum gives
+0.307 rad/s, which at `kd = 0.6` is 0.184 N·m of pure noise against a 0.6 N·m
+limit — **about a third of the actuator spent on quantisation**.
+
+`KalmanVelocity` derives its gains rather than having them chosen, and with
+`use_model` predicts using the arm's dynamics instead of assuming constant
+velocity, which recovers almost everything quantisation took away. See
+[adr/0008](adr/0008-kalman-gains-from-the-datasheet.md) — including why a
+model-based estimator becomes *worse* than a model-free one when its model is
+wrong.
+
+## Planning and trajectories
+
+`arm.cspace` gives collision checking and, because this arm has only three
+joints, a drawable occupancy grid of configuration space. `arm.planning`
+implements RRT, RRT\* and shortcutting; `arm.timing` and `arm.topp` turn a
+geometric path into something the actuators can execute.
+
+Concepts in [04-planning.md](04-planning.md); the two measured decisions in
+[adr/0009](adr/0009-rrt-with-shortcutting.md) and
+[adr/0010](adr/0010-time-optimal-parameterisation.md).
+
+Worth stating here because it drove a change to the world: with only a floor,
+**107 of 107 randomly sampled valid configuration pairs were connectable by a
+straight line**. The free region is nearly convex and a planner had nothing to
+do, so `config/arm.toml` gained an obstacle.
+
 ## Actuators and firmware: Tier A, Dynamixel
 
 See [adr/0001](adr/0001-actuator-tier-a-dynamixel.md) for the full comparison.
@@ -208,3 +252,29 @@ motor mount bolt patterns, magnetic-encoder standoff distance, connector
 placement, cable routing and strain relief. KiCad round-trips with build123d
 via STEP in both directions, its files are s-expression text so they diff
 cleanly, and it is already packaged in nixpkgs.
+
+## Perception: not yet, and the thing that changes the stack
+
+Still deliberately absent. Everything so far closes the loop on **joint
+encoders**: the arm knows where it is because its motors say so, and it knows
+where the obstacle is because `config/arm.toml` says so. Neither is true of a
+robot that has to deal with a world it was not told about.
+
+This is also the point at which the two deferred tools earn their place.
+**Gazebo's** real differentiator is sensor simulation — cameras, depth, lidar,
+IMU — and **ROS 2's** is the ecosystem around it. Both were deferred precisely
+because there were no sensors; adding one is what makes them worth their cost.
+
+## What is missing before this drives a real arm
+
+Two gaps, both structural rather than incremental.
+
+**A hardware driver.** `arm.hardware.ArmBackend` exists and `MujocoArm`
+implements it; nothing implements it for real servos. That is the single layer
+between this repository and a moving arm, and it is the reason the boundary was
+designed on day one — see [adr/0001](adr/0001-actuator-tier-a-dynamixel.md).
+
+**A safety layer.** No watchdog, no e-stop, no limit enforcement in the control
+loop, no startup homing. Irrelevant in simulation and serious with 1.5 N·m
+servos. This is the one pillar from the original brief — "real-time and safety"
+— that has not been touched at all.
