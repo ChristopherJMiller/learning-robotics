@@ -115,21 +115,34 @@ def inverse_dynamics(q: np.ndarray, dq: np.ndarray, ddq: np.ndarray) -> np.ndarr
     ).copy()
 
 
-def forward_dynamics(q: np.ndarray, dq: np.ndarray, tau: np.ndarray) -> np.ndarray:
+def forward_dynamics(q: np.ndarray, dq: np.ndarray, tau: np.ndarray, params=None) -> np.ndarray:
     """Acceleration produced by a torque (ABA) -- the inverse of :func:`inverse_dynamics`.
 
     This is what the simulator does internally, and running it in the estimator
     is what lets a Kalman filter predict with the arm's real dynamics instead of
-    assuming constant velocity. Damping is subtracted because the plant applies
-    it as a passive force.
+    assuming constant velocity.
+
+    Both passive resisting torques are subtracted, because the plant applies
+    them whether or not the model mentions them. Leaving friction out was a
+    real bug rather than a simplification: against a plant with 0.05 N·m of
+    Coulomb friction the predicted acceleration was wrong by 13.4 rad/s², and
+    subtracting it brings the error to exactly zero. An estimator cannot model
+    a force its dynamics function does not include -- no value of ``params``
+    would have helped.
+
+    ``params`` selects which friction values to use, so an estimator can be
+    given a *different* model from the plant: that difference is the sim-to-real
+    gap, and making it explicit is what lets it be measured.
     """
     model, data = _model()
+    dq = np.asarray(dq, dtype=float)
+    passive = damping_torque(dq) + friction_torque(dq, params=params)
     return np.asarray(
         pinocchio.aba(
             model,
             data,
             np.asarray(q, dtype=float),
-            np.asarray(dq, dtype=float),
-            np.asarray(tau, dtype=float) - damping_torque(dq),
+            dq,
+            np.asarray(tau, dtype=float) - passive,
         )
     ).copy()

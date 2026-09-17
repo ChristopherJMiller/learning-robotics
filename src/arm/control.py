@@ -256,6 +256,7 @@ def feedforward_pd(
     integrator: Integrator | None = None,
     dt: float = 0.005,
     refused_torque: np.ndarray | None = None,
+    params: ArmParams | None = None,
 ) -> np.ndarray:
     """Inverse-dynamics feedforward from the **plan**, plus PD on the error.
 
@@ -263,11 +264,15 @@ def feedforward_pd(
     entirely from the planned trajectory, so it introduces no sensor noise and
     could be precomputed offline; the feedback term only has to reject what the
     model missed.
+
+    ``params`` is what the controller *believes* about the arm, which need not
+    match the plant. Passing a model whose friction has been identified is how
+    a measurement turns into better tracking.
     """
     feedforward = (
         inverse_dynamics(setpoint.q, setpoint.dq, setpoint.ddq)
         + damping_torque(setpoint.dq)
-        + friction_torque(setpoint.dq)
+        + friction_torque(setpoint.dq, params=params)
     )
     feedback = gains.kp * (setpoint.q - state.q) + gains.kd * (setpoint.dq - state.dq)
 
@@ -280,6 +285,7 @@ def computed_torque(
     state: ArmState,
     setpoint: Setpoint,
     gains: AccelGains,
+    params: ArmParams | None = None,
 ) -> np.ndarray:
     """Inverse-dynamics control evaluated at the **measured** state.
 
@@ -300,7 +306,7 @@ def computed_torque(
         mass_matrix(state.q) @ commanded_acceleration
         + bias
         + damping_torque(state.dq)
-        + friction_torque(state.dq)
+        + friction_torque(state.dq, params=params)
     )
 
 

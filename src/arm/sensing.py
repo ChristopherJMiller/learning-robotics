@@ -340,7 +340,10 @@ class KalmanVelocity:
         if self.use_model and tau is not None:
             from arm.dynamics import forward_dynamics
 
-            acceleration = forward_dynamics(position, velocity, tau)
+            # params carries the estimator's *belief* about friction, which need
+            # not match the plant. That mismatch is the whole point of the
+            # comparison in scripts/sim_sensing.py.
+            acceleration = forward_dynamics(position, velocity, tau, self.params)
         else:
             acceleration = np.zeros(3)
 

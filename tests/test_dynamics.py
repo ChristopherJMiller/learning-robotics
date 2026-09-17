@@ -23,6 +23,7 @@ from hypothesis import given, settings
 from arm.dynamics import (
     _model,
     damping_torque,
+    forward_dynamics,
     gravity_torque,
     inverse_dynamics,
     joint_damping,
@@ -139,6 +140,50 @@ def test_inverse_and_forward_dynamics_are_inverses(q):
     recovered = pinocchio.aba(model, data, q, dq, tau)
 
     np.testing.assert_allclose(recovered, ddq, atol=1e-9)
+
+
+@pytest.mark.parametrize("friction", [0.0, 0.02, 0.05, 0.10])
+def test_forward_dynamics_accounts_for_friction(friction, params):
+    """A regression test for a real bug.
+
+    ``forward_dynamics`` subtracted viscous damping but not Coulomb friction, so
+    against a plant with 0.05 N·m of friction its predicted acceleration was
+    wrong by 13.4 rad/s². The model-based Kalman filter could therefore never
+    represent friction *even when told the correct value* -- the parameter had
+    nowhere to act.
+
+    Checked across friction levels because at 0.0 the bug is invisible, which is
+    exactly why it survived: the committed configuration has friction off.
+    """
+    variant = params.with_friction(friction)
+    plant = MujocoArm(variant, from_params=True)
+
+    q = np.array([0.1, 0.7, -0.9])
+    dq = np.array([0.8, -0.6, 0.5])
+    tau = np.array([0.05, 0.25, 0.04])
+
+    plant.reset(q, dq)
+    plant.data.ctrl[:] = tau
+    mujoco.mj_forward(plant.model, plant.data)
+
+    np.testing.assert_allclose(forward_dynamics(q, dq, tau, variant), plant.data.qacc, atol=1e-9)
+
+
+def test_a_model_unaware_of_friction_predicts_the_wrong_acceleration(params):
+    """The converse: the error is large, so the test above is worth having."""
+    variant = params.with_friction(0.05)
+    plant = MujocoArm(variant, from_params=True)
+
+    q = np.array([0.1, 0.7, -0.9])
+    dq = np.array([0.8, -0.6, 0.5])
+    tau = np.array([0.05, 0.25, 0.04])
+
+    plant.reset(q, dq)
+    plant.data.ctrl[:] = tau
+    mujoco.mj_forward(plant.model, plant.data)
+
+    unaware = forward_dynamics(q, dq, tau, params)  # friction = 0
+    assert np.linalg.norm(unaware - plant.data.qacc) > 10.0
 
 
 @given(q=joint_angles())
