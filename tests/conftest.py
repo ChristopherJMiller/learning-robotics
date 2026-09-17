@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from functools import lru_cache
+
 import numpy as np
 import pytest
 from hypothesis import strategies as st
@@ -45,29 +47,37 @@ def nonsingular_joint_angles(margin: float = 0.15) -> st.SearchStrategy[np.ndarr
     )
 
 
-def collision_free_joint_angles(clearance_m: float = 0.010) -> st.SearchStrategy:
-    """Configurations that are inside the joint limits *and* above the floor.
+@lru_cache(maxsize=1)
+def _collision_checker():
+    from arm.cspace import CollisionChecker
 
-    A surprisingly large part of the joint-limit box puts the arm through the
-    ground: the limits constrain each joint independently, but the floor is a
-    constraint on the whole chain. Any comparison against a model with no
-    collision geometry -- Pinocchio, for instance -- must exclude these, because
-    MuJoCo will be applying contact forces the other engine cannot know about.
+    return CollisionChecker()
 
-    The exclusion is not a workaround. It is the difference between the
+
+def collision_free_joint_angles() -> st.SearchStrategy:
+    """Configurations the simulator considers free of *all* contact.
+
+    A large part of the joint-limit box puts the arm through something: the
+    limits constrain each joint independently, while collision is a constraint
+    on the whole chain against the whole world. Any comparison against a model
+    with no collision geometry -- Pinocchio, for instance -- must exclude these,
+    because MuJoCo will be applying contact forces the other engine cannot know
+    about. That exclusion is not a workaround; it is the difference between the
     articulated dynamics and the constrained dynamics.
 
-    The clearance is measured from the *surface* of the links, not from the
-    joint frames. Filtering on frame origins alone is wrong and was: the links
-    are capsules of 15 mm radius, so a frame sitting 5 mm above the floor still
-    has geometry 10 mm inside it. That produced a test which passed or failed
-    depending on which examples Hypothesis happened to draw -- worse than one
-    that simply failed.
+    Asks MuJoCo rather than reimplementing the geometry. Two versions of this
+    filter were wrong before, both in the same way -- each approximated the
+    collision test and each produced a test that passed or failed depending on
+    which examples Hypothesis happened to draw:
+
+    * the first compared joint frame origins against the floor, ignoring that
+      the links have a 15 mm radius around those frames;
+    * the second corrected for the radius but still only knew about the floor,
+      so adding an obstacle to the world broke it immediately.
+
+    There is no third approximation worth writing. The simulator already answers
+    this question exactly, and it is the same answer the dynamics comparison
+    depends on.
     """
-    from arm.kinematics import fk_frames
-    from arm.models import LINK_RADIUS_M
-
-    def lowest_surface(q) -> float:
-        return min(frame[2, 3] for frame in fk_frames(q)[1:]) - LINK_RADIUS_M
-
-    return joint_angles().filter(lambda q: lowest_surface(q) > clearance_m)
+    checker = _collision_checker()
+    return joint_angles().filter(lambda q: not checker.in_collision(q))

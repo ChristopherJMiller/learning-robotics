@@ -146,3 +146,26 @@ coulomb_friction_nm = 0.0
 gravity_ms2  = [0.0, 0.0, -9.81]
 timestep_s   = 0.001          # 1 kHz physics; must be an integer multiple of control_hz
 control_hz   = 200            # Dynamixel bus realistically sustains this
+
+# ---------------------------------------------------------------------------
+# Obstacles. Static boxes in the world, fixed to it -- the things a planner has
+# to route around.
+#
+# There is a reason these exist beyond realism. With only a floor, 107 of 107
+# randomly sampled valid configuration pairs turned out to be connectable by a
+# straight line in joint space: the free region is nearly convex and planning is
+# pointless. One post in the workspace changes that, and it is also the honest
+# situation -- a real arm shares its table with something.
+#
+# Collision geometry only. These carry no mass and are never simulated as
+# dynamic bodies.
+# ---------------------------------------------------------------------------
+
+# Placed at 90 degrees of base bearing, because every control demo works
+# between -34 and +34 degrees. Putting it in their way would have quietly turned
+# the tracking and impedance results into obstacle-contact results.
+
+[[obstacles]]
+name        = "post"
+pos_m       = [0.0, 0.19, 0.11]
+half_size_m = [0.022, 0.022, 0.11]

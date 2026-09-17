@@ -102,6 +102,20 @@ class Actuator(_Frozen):
         return self.stall_torque_nm * self.derate_factor
 
 
+class Obstacle(_Frozen):
+    """A static box in the world, present only for collision."""
+
+    name: str
+    pos_m: tuple[float, float, float]
+    half_size_m: tuple[float, float, float]
+
+    @model_validator(mode="after")
+    def _positive_extent(self) -> Obstacle:
+        if any(h <= 0 for h in self.half_size_m):
+            raise ValueError(f"obstacle {self.name!r}: half sizes must be positive")
+        return self
+
+
 class Material(_Frozen):
     name: str
     density_kgm3: float = Field(gt=0)
@@ -140,6 +154,7 @@ class ArmParams(_Frozen):
     meta: Meta
     geometry: Geometry
     material: Material
+    obstacles: tuple[Obstacle, ...] = ()
     links: tuple[Link, ...]
     joints: tuple[Joint, ...]
     actuators: dict[str, Actuator]

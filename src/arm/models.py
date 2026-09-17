@@ -252,6 +252,20 @@ def build_mjcf(params: ArmParams | None = None, *, meshdir: str | None = None) -
         rgba="0.25 0.26 0.28 1",
     )
 
+    # Static obstacles, welded to the world. Collision geometry only: they carry
+    # no mass and are never simulated as dynamic bodies, because their only job
+    # is to be something the planner has to route around.
+    for obstacle in params.obstacles:
+        ET.SubElement(
+            worldbody,
+            "geom",
+            name=f"obstacle_{obstacle.name}",
+            type="box",
+            pos=_vec(obstacle.pos_m),
+            size=_vec(obstacle.half_size_m),
+            rgba="0.45 0.35 0.30 1",
+        )
+
     _, _, length_fore = params.link_lengths_m
     parent = worldbody
 
