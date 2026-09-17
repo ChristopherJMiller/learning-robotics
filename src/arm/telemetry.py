@@ -123,6 +123,46 @@ class Telemetry:
                 static=True,
             )
 
+        # The world the arm is in, not just the arm. Without the floor and the
+        # obstacles a recording shows a skeleton waving in a void, and a
+        # collision or a near miss is impossible to see.
+        rr.log(
+            "world/floor",
+            rr.Boxes3D(
+                centers=[[0.0, 0.0, -0.005]],
+                half_sizes=[[0.45, 0.45, 0.005]],
+                colors=[[55, 58, 64]],
+            ),
+            static=True,
+        )
+        if self.params.obstacles:
+            rr.log(
+                "world/obstacles",
+                rr.Boxes3D(
+                    centers=[o.pos_m for o in self.params.obstacles],
+                    half_sizes=[o.half_size_m for o in self.params.obstacles],
+                    colors=[[170, 120, 95]],
+                    labels=[o.name for o in self.params.obstacles],
+                ),
+                static=True,
+            )
+
+    def log_path(self, path, name: str = "planned") -> None:
+        """Draw a planned path as the curve the tip will follow through space."""
+        from arm.kinematics import fk
+
+        points = np.array([fk(np.asarray(q, dtype=float), self.params) for q in path])
+        rr.log(
+            f"world/{name}",
+            rr.LineStrips3D([points], radii=0.002, colors=[[120, 200, 255]]),
+            static=True,
+        )
+        rr.log(
+            f"world/{name}_waypoints",
+            rr.Points3D(points, radii=0.006, colors=[[120, 200, 255]]),
+            static=True,
+        )
+
     def log_arm(self, q: np.ndarray) -> None:
         """Log the kinematic chain as a transform hierarchy plus a skeleton.
 

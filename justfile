@@ -46,6 +46,10 @@ plan *ARGS:
 execute *ARGS:
     python scripts/plan_execute.py {{ARGS}}
 
+# Same, in MuJoCo's viewer at quarter speed -- the move is under a second.
+execute-watch SPEED="4":
+    python scripts/plan_execute.py --viewer --replay {{SPEED}}
+
 # Watch the physics live in MuJoCo's own viewer (shows contacts and the floor).
 watch CONTROLLER="feedforward_pd":
     python scripts/sim_track.py --viewer --only {{CONTROLLER}} --seconds 20

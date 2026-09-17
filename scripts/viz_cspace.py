@@ -28,13 +28,11 @@ import rerun.blueprint as rrb
 from arm.cspace import CollisionChecker, occupancy_grid
 from arm.kinematics import fk_frames
 from arm.params import default_params
+from arm.scenarios import REACH_ACROSS
 from arm.telemetry import RUNS_DIR
 
-# Reaching to either side of the post: bearing 65 and 115 degrees, r = 0.17 m,
-# z = 0.16 m. Both configurations are valid, and half the straight line between
-# them is not.
-START = np.array([1.1345, -0.2556, 1.6598])
-GOAL = np.array([2.0071, -0.2556, 1.6598])
+START = REACH_ACROSS.start
+GOAL = REACH_ACROSS.goal
 
 
 def log_arm_at(path: str, q: np.ndarray, params, colour) -> None:

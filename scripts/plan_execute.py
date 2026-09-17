@@ -15,13 +15,25 @@ Two things this demonstrates that the earlier demos could not. The trajectory is
 sinusoid. And torque feasibility is enforced by construction: the trajectory is
 slowed until the arm can hold it, rather than checked afterwards and hoped for.
 
-    just execute
-    just execute --speed 3.0     ask for a traversal the arm cannot sustain
+Watching it
+-----------
+The move itself takes about half a second, which is too fast to follow, so both
+viewers take a slowdown factor::
+
+    just execute                   run it, write runs/plan_execute.rrd
+    just view plan_execute         open that recording, scrub the timeline
+    just execute-watch             MuJoCo's viewer at 1/4 speed, with contacts
+    just execute --spawn           live Rerun while it runs
+
+Rerun shows what the *controller* believes -- planned path, target, tracking
+error on a timeline. MuJoCo's viewer shows what the *physics* is doing, which is
+where a near miss with the post is actually visible.
 """
 
 from __future__ import annotations
 
 import argparse
+import time
 
 import numpy as np
 
@@ -30,6 +42,7 @@ from arm.cspace import CollisionChecker
 from arm.kinematics import fk
 from arm.params import default_params
 from arm.planning import path_length, rrt, shortcut
+from arm.scenarios import TUCK_AND_EXTEND
 from arm.sensing import KalmanVelocity, SensedArm
 from arm.sim import MujocoArm
 from arm.telemetry import Telemetry
@@ -41,16 +54,31 @@ from arm.timing import (
     torque_limits,
     trajectory_from_path,
 )
+from arm.topp import parameterise
 
-START = np.array([1.1345, -0.2556, 1.6598])
-GOAL = np.array([2.0071, -0.2556, 1.6598])
+SCENARIO = TUCK_AND_EXTEND
+START, GOAL = SCENARIO.start, SCENARIO.goal
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--speed", type=float, default=1.5, help="nominal rad/s")
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--spawn", action="store_true")
+    parser.add_argument("--spawn", action="store_true", help="live Rerun viewer")
+    parser.add_argument(
+        "--viewer", action="store_true", help="MuJoCo's own viewer, at wall-clock speed"
+    )
+    parser.add_argument(
+        "--replay",
+        type=float,
+        default=1.0,
+        help="slow playback for --viewer; the move itself is under a second",
+    )
+    parser.add_argument(
+        "--uniform",
+        action="store_true",
+        help="stretch the whole trajectory by one factor instead of using TOPP",
+    )
     args = parser.parse_args()
 
     params = default_params()
@@ -86,11 +114,20 @@ def main() -> int:
         f"({'holdable' if holdable else 'NOT holdable'})"
     )
 
-    trajectory, factor = time_optimal_scale(trajectory)
-    print(
-        f"4. scaled     {factor:.2f}x slower -> {trajectory.duration_s:.3f} s, "
-        f"peak {np.round(peak_torque(trajectory), 3)}"
-    )
+    if args.uniform:
+        trajectory, factor = time_optimal_scale(trajectory)
+        print(
+            f"4. scaled     uniformly {factor:.2f}x -> {trajectory.duration_s:.3f} s, "
+            f"peak {np.round(peak_torque(trajectory), 3)}"
+        )
+    else:
+        # Vary the speed along the path instead of stretching all of it by the
+        # single hardest instant. Same geometry, solved timing.
+        trajectory = parameterise(trajectory)
+        print(
+            f"4. TOPP       {trajectory.duration_s:.3f} s, "
+            f"peak {np.round(trajectory.peak_torque(), 3)}"
+        )
 
     # 5. execute, against quantised sensing and the recommended controller
     plant = MujocoArm(params)
@@ -108,13 +145,17 @@ def main() -> int:
     settle_s = 0.5
     steps = int((trajectory.duration_s + settle_s) / plant.dt)
 
+    handle = plant.launch_viewer() if args.viewer else None
+
     with Telemetry("plan_execute", params, spawn=args.spawn) as log:
         log.note(
             f"plan -> execute\n\n"
+            f"- scenario **{SCENARIO.name}**\n"
             f"- path {path_length(path):.3f} rad, {len(path)} waypoints\n"
-            f"- slowed {factor:.2f}x for torque\n"
+            f"- timing: {'uniform scaling' if args.uniform else 'TOPP'}\n"
             f"- duration {trajectory.duration_s:.3f} s"
         )
+        log.log_path(path)
         for _ in range(steps):
             state = arm.read()
             truth = plant.read()
@@ -124,6 +165,10 @@ def main() -> int:
             arm.step()
             contacts += int(plant.data.ncon > 0)
 
+            if handle is not None:
+                handle.sync()
+                time.sleep(plant.dt * args.replay)
+
             error = float(np.linalg.norm(fk(truth.q, params) - fk(target.q, params)))
             errors.append(error)
 
@@ -132,6 +177,10 @@ def main() -> int:
             log.log_target(fk(target.q, params))
             log.log_scalars(tip_error_m=error)
             log.row(sim_time=truth.t, q=truth.q, q_desired=target.q, tau=state.tau)
+
+    if handle is not None:
+        time.sleep(1.0)  # leave the final pose on screen for a moment
+        handle.close()
 
     final = float(np.linalg.norm(fk(plant.read().q, params) - fk(GOAL, params)))
     print(

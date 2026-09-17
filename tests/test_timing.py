@@ -13,6 +13,7 @@ import pytest
 
 from arm.cspace import CollisionChecker
 from arm.planning import rrt, shortcut
+from arm.scenarios import REACH_ACROSS
 from arm.timing import (
     gravity_feasible,
     path_stays_valid,
@@ -22,8 +23,8 @@ from arm.timing import (
     trajectory_from_path,
 )
 
-START = np.array([1.1345, -0.2556, 1.6598])
-GOAL = np.array([2.0071, -0.2556, 1.6598])
+START = REACH_ACROSS.start
+GOAL = REACH_ACROSS.goal
 
 
 @pytest.fixture(scope="module")

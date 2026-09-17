@@ -14,10 +14,10 @@ import pytest
 
 from arm.cspace import CollisionChecker
 from arm.planning import path_length, rrt, rrt_star, shortcut
+from arm.scenarios import REACH_ACROSS
 
-# Reaching to either side of the post: bearing 65 and 115 degrees.
-START = np.array([1.1345, -0.2556, 1.6598])
-GOAL = np.array([2.0071, -0.2556, 1.6598])
+START = REACH_ACROSS.start
+GOAL = REACH_ACROSS.goal
 
 
 @pytest.fixture(scope="module")
