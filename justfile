@@ -38,6 +38,10 @@ sensing *ARGS:
 cspace *ARGS:
     python scripts/viz_cspace.py {{ARGS}}
 
+# Compare RRT, shortcutting and RRT* -- is rewiring worth its cost?
+plan *ARGS:
+    python scripts/plan_compare.py {{ARGS}}
+
 # Watch the physics live in MuJoCo's own viewer (shows contacts and the floor).
 watch CONTROLLER="feedforward_pd":
     python scripts/sim_track.py --viewer --only {{CONTROLLER}} --seconds 20
