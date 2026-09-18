@@ -47,6 +47,7 @@ __all__ = [
     "ik",
     "ik_nearest",
     "jacobian",
+    "point_jacobian",
     "jacobian_det",
     "manipulability",
     "within_limits",
@@ -364,3 +365,42 @@ def fk_frames_relative(q: np.ndarray, params: ArmParams | None = None) -> list[n
     """
     absolute = fk_frames(q, params)
     return [inverse(absolute[index]) @ absolute[index + 1] for index in range(len(absolute) - 1)]
+
+
+# The world-frame rotation axis of each joint, expressed in *its own* frame from
+# fk_frames. Joint 1 turns about +z; joints 2 and 3 are built as rot_y(-theta),
+# so their axis is -y. Reading the signs off the construction rather than
+# restating them is the point -- see fk_frames for where these come from.
+_JOINT_AXES_LOCAL = np.array([[0.0, 0.0, 1.0], [0.0, -1.0, 0.0], [0.0, -1.0, 0.0]])
+
+
+def point_jacobian(
+    q: np.ndarray, point_world: np.ndarray, params: ArmParams | None = None
+) -> np.ndarray:
+    """How a point rigidly attached to the arm moves with joint velocity.
+
+    ``jacobian`` answers this for the tip alone. Anything else bolted to a link
+    -- a fiducial, a sensor, a tool -- needs the same thing at its own location,
+    and the geometric construction gives it for free::
+
+        dp/dtheta_i  =  a_i x (p - o_i)
+
+    for a revolute joint with world axis ``a_i`` through the point ``o_i``.
+    Rotating about an axis sweeps a point around a circle, so its velocity is
+    perpendicular to both the axis and the radius, with magnitude proportional
+    to the distance from the axis. A joint *after* the point in the chain does
+    not move it at all, but on this arm every joint precedes every attachment.
+
+    ``point_world`` must be the point's *current* world position at ``q`` --
+    the Jacobian is about where the point is now, not where it was mounted.
+    """
+    q = np.asarray(q, dtype=float)
+    point_world = np.asarray(point_world, dtype=float)
+    frames = fk_frames(q, params)
+
+    columns = []
+    for index in range(3):
+        frame = frames[index]
+        axis = frame[:3, :3] @ _JOINT_AXES_LOCAL[index]
+        columns.append(np.cross(axis, point_world - frame[:3, 3]))
+    return np.column_stack(columns)

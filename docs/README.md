@@ -31,6 +31,7 @@ record a measurement that contradicted the obvious answer.
 | [0010](adr/0010-time-optimal-parameterisation.md) | Solve the velocity profile, don't stretch the trajectory |
 | [0011](adr/0011-eye-to-hand-with-a-single-fiducial.md) | Eye-to-hand, with one marker on the forearm |
 | [0012](adr/0012-calibrate-then-refine.md) | Closed-form hand-eye is an initial guess, not an answer |
+| [0013](adr/0013-rewind-correct-replay.md) | Rewind to the shutter time; never fuse an observation as "now" |
 
 ## Things the measurements contradicted
 
@@ -63,3 +64,10 @@ textbook answer was reasonable and the measurement disagreed.
 * **Which closed-form hand-eye solver you pick stops mattering** once it is only
   an initial guess: seven methods spanning 3.6–19.2 mm all converge to the same
   0.661 mm after refinement. ([0012](adr/0012-calibrate-then-refine.md))
+* **A sensor with a mishandled timestamp is worse than no sensor.** Fused as
+  though it described "now", a camera worth 11% becomes a 6.2× loss — and the
+  crossover is 20–40 ms, an ordinary USB pipeline.
+  ([0013](adr/0013-rewind-correct-replay.md))
+* **A camera does not beat an encoder at measuring a joint** — quantisation wins
+  by 10×. It beats one at measuring a *link*, past the gearbox and the flex of a
+  printed part. ([0013](adr/0013-rewind-correct-replay.md))

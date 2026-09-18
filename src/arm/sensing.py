@@ -36,9 +36,16 @@ __all__ = [
     "FiniteDifference",
     "KalmanVelocity",
     "SensedArm",
+    "ENCODER_OBSERVATION",
     "encoder_resolution_rad",
     "quantize",
 ]
+
+
+# The encoder measures position and says nothing about velocity, so H = [I 0].
+# Velocity is only ever *inferred*, from watching position change -- which is
+# why the filter needs a model of how the two are related at all.
+ENCODER_OBSERVATION = np.hstack([np.eye(3), np.zeros((3, 3))])
 
 
 def encoder_resolution_rad(params: ArmParams | None = None) -> np.ndarray:
@@ -363,30 +370,75 @@ class KalmanVelocity:
             self._P = np.diag(np.concatenate([np.diag(self._R), np.full(3, 1.0)]))
             return np.zeros(3)
 
-        transition = self._transition(dt)
+        self.predict(dt, tau)
+        self.correct(measurement - ENCODER_OBSERVATION @ self._x, ENCODER_OBSERVATION, self._R)
+        return self._x[3:].copy()
 
-        # Predict. The mean may follow the nonlinear dynamics while the
-        # covariance is propagated with the kinematic transition -- an EKF-style
-        # approximation that skips the Jacobian of the dynamics. It costs a
-        # little optimality and no correctness, because a Kalman filter stays
-        # stable under an imperfect F so long as Q is honest about it.
+    # The two halves of update(), separately callable. Splitting them is what
+    # makes a *delayed* measurement tractable: arm.fusion rewinds to the moment
+    # an observation was taken, corrects there, and replays the predictions
+    # since. Fused as one step they could only ever be applied to "now".
+
+    def predict(self, dt: float, tau: np.ndarray | None = None) -> None:
+        """Roll the state forward. Uncertainty grows.
+
+        The mean may follow the nonlinear dynamics while the covariance is
+        propagated with the kinematic transition -- an EKF-style approximation
+        that skips the Jacobian of the dynamics. It costs a little optimality
+        and no correctness, because a Kalman filter stays stable under an
+        imperfect ``F`` so long as ``Q`` is honest about it.
+        """
+        transition = self._transition(dt)
         self._x = self._predict_mean(dt, tau)
         self._P = transition @ self._P @ transition.T + self._process_noise(dt)
 
-        # Update.
-        observation = np.hstack([np.eye(3), np.zeros((3, 3))])
-        innovation = measurement - observation @ self._x
-        innovation_covariance = observation @ self._P @ observation.T + self._R
+    def correct(self, innovation: np.ndarray, observation: np.ndarray, noise: np.ndarray) -> None:
+        """Fold in one measurement's disagreement. Uncertainty shrinks.
+
+        Takes the *innovation* rather than the measurement so the same code
+        serves a linear encoder reading and a nonlinear camera one, where the
+        prediction is ``h(x)`` and ``observation`` is its Jacobian.
+        """
+        innovation_covariance = observation @ self._P @ observation.T + noise
         gain = self._P @ observation.T @ np.linalg.inv(innovation_covariance)
 
         self._x = self._x + gain @ innovation
-        identity = np.eye(6)
         # Joseph form: stays symmetric and positive definite under round-off,
         # where the shorter (I - KH)P does not.
-        factor = identity - gain @ observation
-        self._P = factor @ self._P @ factor.T + gain @ self._R @ gain.T
+        factor = np.eye(6) - gain @ observation
+        self._P = factor @ self._P @ factor.T + gain @ noise @ gain.T
 
-        return self._x[3:].copy()
+    @property
+    def state(self) -> np.ndarray | None:
+        """``[q; dq]``, or None before the first measurement."""
+        return None if self._x is None else self._x.copy()
+
+    @property
+    def measurement_noise(self) -> np.ndarray:
+        """``R`` -- how well one encoder reading pins down the state.
+
+        Defaults to the quantisation floor, which is right only while the
+        encoder and the thing being estimated are the same object. When they
+        are not -- a motor-side encoder and a compliant link, say -- this must
+        be widened to say so, or the filter is overconfident in precisely the
+        sensor that is wrong. See :class:`arm.fusion.JointCompliance`.
+        """
+        return self._R.copy()
+
+    @measurement_noise.setter
+    def measurement_noise(self, noise: np.ndarray) -> None:
+        noise = np.asarray(noise, dtype=float)
+        if noise.shape != (3, 3):
+            raise ValueError(f"R must be 3x3, got {noise.shape}")
+        self._R = noise
+
+    def snapshot(self) -> tuple[np.ndarray, np.ndarray]:
+        """``(x, P)`` copies, for rewinding to later."""
+        return self._x.copy(), self._P.copy()
+
+    def restore(self, snapshot: tuple[np.ndarray, np.ndarray]) -> None:
+        state, covariance = snapshot
+        self._x, self._P = state.copy(), covariance.copy()
 
     def steady_state_gain(self, dt: float, iterations: int = 500) -> np.ndarray:
         """The gain this filter converges to, computed without any data.

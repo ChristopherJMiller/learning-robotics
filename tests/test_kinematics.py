@@ -304,3 +304,58 @@ def test_composed_hierarchy_reaches_the_end_effector(q):
     for parent_to_child in fk_frames_relative(q):
         composed = composed @ parent_to_child
     np.testing.assert_allclose(composed[:3, 3], fk(q), atol=1e-12)
+
+
+# --------------------------------------------------------------------------
+# point_jacobian -- the same question as jacobian(), asked anywhere on the arm
+# --------------------------------------------------------------------------
+
+
+def test_point_jacobian_matches_the_analytic_one_at_the_tip(params):
+    """Two independent derivations of the same quantity must agree exactly.
+
+    ``jacobian`` comes from differentiating the closed-form FK; ``point_jacobian``
+    from the geometric construction ``a x (p - o)``. They share no code.
+    """
+    from arm.kinematics import point_jacobian
+
+    rng = np.random.default_rng(0)
+    for _ in range(50):
+        q = rng.uniform(-2.0, 2.0, 3)
+        np.testing.assert_allclose(
+            point_jacobian(q, fk(q, params), params), jacobian(q, params), atol=1e-12
+        )
+
+
+def test_point_jacobian_matches_finite_differences_at_the_marker(params):
+    """Off the tip, where ``jacobian`` cannot answer, check against calculus."""
+    from arm.fiducial import marker_pose_world
+    from arm.kinematics import point_jacobian
+
+    marker = params.markers[0]
+    rng = np.random.default_rng(1)
+    step = 1e-6
+
+    for _ in range(20):
+        q = rng.uniform(-1.5, 1.5, 3)
+        numeric = np.zeros((3, 3))
+        for index in range(3):
+            forward, backward = q.copy(), q.copy()
+            forward[index] += step
+            backward[index] -= step
+            numeric[:, index] = (
+                marker_pose_world(marker, forward, params)[:3, 3]
+                - marker_pose_world(marker, backward, params)[:3, 3]
+            ) / (2 * step)
+
+        position = marker_pose_world(marker, q, params)[:3, 3]
+        np.testing.assert_allclose(point_jacobian(q, position, params), numeric, atol=1e-8)
+
+
+def test_a_point_on_the_base_axis_does_not_move_with_the_base_joint(params):
+    """Rotating about an axis leaves points *on* that axis alone."""
+    from arm.kinematics import point_jacobian
+
+    q = np.array([0.4, 0.6, -0.9])
+    on_axis = np.array([0.0, 0.0, 0.12])  # the base joint's axis is world z
+    np.testing.assert_allclose(point_jacobian(q, on_axis, params)[:, 0], 0.0, atol=1e-15)

@@ -106,3 +106,7 @@ perception *ARGS:
 # Recover the camera pose from motion alone; --degenerate shows it failing.
 calibrate *ARGS:
     python scripts/calibrate_handeye.py {{ARGS}}
+
+# What a late camera costs: naive fusion versus rewind-correct-replay.
+latency *ARGS:
+    python scripts/sim_latency.py {{ARGS}}

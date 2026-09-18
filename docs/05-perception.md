@@ -197,7 +197,118 @@ is computed from forward kinematics alone and so can be checked on candidate
 poses *before* moving anything. `calibrate()` refuses below `MIN_AXIS_SPREAD`
 and names the reason.
 
-## 5.4 What this chapter earned
+## 5.4 A camera always tells you about the past
+
+Every estimator before this consumed measurements the instant they were true.
+An encoder read over a serial bus is close enough — a Dynamixel answers in well
+under a millisecond, a fraction of a control period at 200 Hz.
+
+A camera is not close enough. Expose, read off the sensor, carry over USB,
+undistort, threshold, decode, `solvePnP`. Tens of milliseconds is ordinary. By
+the time the answer exists, **it is an answer about where the arm was.**
+
+### First, a detour: why bother at all?
+
+The honest starting measurement is deflating. On a rigid arm the encoder simply
+wins:
+
+| | marker position uncertainty |
+|---|---|
+| encoder quantisation | **0.149 mm** |
+| camera, lateral | 1.5 mm |
+| camera, depth | 7.4 mm |
+
+The filter correctly gives the camera almost no weight, and none of what
+follows makes any difference — all three fusion strategies land within 0.02 mm
+of each other.
+
+What changes that is remembering what an encoder is attached to. **It measures
+the motor, not the link.** Between a Dynamixel's output shaft and the end of a
+printed PLA link sit gear backlash, horn compliance, and the flex of the part.
+A degree of that costs **5.87 mm** at the marker — well past what the camera
+resolves. So:
+
+> A camera does not beat an encoder at measuring a joint.
+> It beats an encoder at measuring a **link**.
+
+That is `arm.fusion.LinkSideError`, and it is the precondition for any of this
+being worth wiring up.
+
+### The naive thing, and what it costs
+
+Fuse the observation as though it described the present, and the filter is told
+the marker is somewhere it has already left. The induced error is
+`velocity × latency`, which has a nasty shape: **the faster the arm moves, the
+worse the estimate gets** — backwards from what an extra sensor should buy, and
+invisible in any static test.
+
+Marker at 137 mm/s, camera at 30 Hz, control at 200 Hz, tip RMS error
+(`just latency`):
+
+| latency | `encoder_only` | `naive` | `rewind` |
+|---|---|---|---|
+| 0 ms | 2.700 mm | 2.407 mm | 2.407 mm |
+| 20 ms | 2.700 mm | 2.815 mm | 2.583 mm |
+| 40 ms | 2.700 mm | 3.760 mm | 2.676 mm |
+| 80 ms | 2.700 mm | 6.145 mm | 2.701 mm |
+| 160 ms | 2.700 mm | 11.471 mm | 2.697 mm |
+| 240 ms | 2.700 mm | **16.773 mm** | 2.700 mm |
+
+The camera is worth about 11% when it is on time. Handled naively it crosses
+over to *worse than never wiring it up* somewhere between **20 and 40 ms** —
+an utterly ordinary USB camera pipeline — and then keeps going, to 6.2× the
+baseline at 240 ms.
+
+> **A sensor with a mishandled timestamp is worse than no sensor.**
+> One adds noise you can characterise; the other adds a speed-dependent bias
+> you cannot.
+
+### Rewind, correct, replay
+
+The fix is to stop pretending and use the timestamp:
+
+1. **Rewind** to the state as it was when the shutter opened.
+2. **Correct** there, where the observation is actually valid.
+3. **Replay** every control step since, from the stored encoder readings.
+
+The corrected history is kept, so a second late observation rewinds onto the
+already-corrected timeline rather than undoing the first.
+
+Notice the `rewind` column does not just stay flat — it decays gently back *to*
+the encoder-only baseline and stops. That is right, and worth understanding: an
+observation about further in the past has less left to say once the encoders
+have already covered the interval. Late information is worth less. It is never
+worth *less than nothing*.
+
+### What the camera actually measures
+
+Not joint angles — a 3D point. So the update is nonlinear:
+
+```
+h(q)  =  marker position from forward kinematics
+H     =  [ point_jacobian(q, marker) | 0 ]
+```
+
+The zero block is the honest part: a single frame says nothing about velocity.
+Velocity improves anyway, because position and velocity are *correlated* in
+`P`, so correcting one moves the other. That correlation is the entire reason a
+filter beats a smoother.
+
+And `R` is not spherical. Depth is 3–5× worse than lateral (§5.2), so the
+covariance is built as an ellipsoid in camera axes and rotated into the world.
+A spherical `R` would be wrong in both directions at once — overconfident along
+the optical axis and underconfident across it.
+
+### What this does not fix
+
+A *systematic* deflection is a bias. Rewinding replays the encoder updates
+faithfully, bias included — measured with gravity droop, `rewind` scored
+3.84 mm against 4.02 mm for ignoring the camera entirely, which is no help at
+all. This is the same wall §`arm.sensing` hits with friction: `Q` and `R`
+describe zero-mean noise, and inflating them never represents a bias. Identify
+it and model it, or estimate it as an augmented state.
+
+## 5.5 What this chapter earned
 
 - A camera pose recovered to **0.661 mm** and **0.032°** without ever being
   measured, scored against a truth the pipeline never reads.
@@ -205,24 +316,29 @@ and names the reason.
   camera.
 - A named, cheap, *predictive* test for whether a pose set can answer the
   question at all.
+- A camera fused into the state estimate for an 11% improvement — and the
+  knowledge that mishandling its timestamp turns that into a 6× loss.
 
-## 5.5 Where this goes
+## 5.6 Where this goes
 
 | Phase | What | The lesson |
 |---|---|---|
 | ~~1. Camera~~ | ~~pinhole model, MuJoCo rendering~~ | ~~conventions, and `diag(1,−1,−1)`~~ |
 | ~~2. Fiducials~~ | ~~ArUco detection and `solvePnP`~~ | ~~depth is the weak axis~~ |
 | ~~3. Hand-eye~~ | ~~`AX = XB` → `T_base_camera`~~ | ~~consistency is not correctness~~ |
-| **4. Latency** | timestamped fusion of delayed observations | a measurement is about the past |
-| 5. Servoing | vision in the loop; obstacles from depth | closing on what is seen |
+| ~~4. Latency~~ | ~~rewind-correct-replay~~ | ~~a late sensor beats a mistimed one~~ |
+| **5. Servoing** | vision in the loop; obstacles from depth | closing on what is seen |
 
-Phase 4 is where the timestamp on `RenderedView` starts to matter. A camera
-frame takes time to arrive, and fusing it as though it described *now* injects
-an error proportional to speed — the faster the arm moves, the worse the
-estimate, which is exactly backwards from what you want.
+Phase 5 is where perception stops being a measurement and becomes part of the
+loop. Two threads: driving the arm to a target the camera locates rather than
+one `arm.toml` declares, and building obstacles for the planner out of the depth
+buffer instead of reading them from config. The second is the more interesting —
+every obstacle the planner has avoided so far was one somebody typed in.
 
 ## See also
 
 - ADR 0011 — eye-to-hand with a single fiducial
 - ADR 0012 — closed-form hand-eye is an initial guess, not an answer
-- `src/arm/camera.py`, `src/arm/fiducial.py`, `src/arm/handeye.py`
+- ADR 0013 — rewind to the shutter time; never fuse an observation as "now"
+- `src/arm/camera.py`, `src/arm/fiducial.py`, `src/arm/handeye.py`,
+  `src/arm/fusion.py`
