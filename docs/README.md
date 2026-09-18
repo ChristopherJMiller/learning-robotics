@@ -7,6 +7,7 @@ Notes written while building, in the order they become useful.
 | [01-concepts.md](01-concepts.md) | Degrees of freedom, SE(3), frames, the Jacobian, singularities |
 | [03-kinematics.md](03-kinematics.md) | The derivation this arm uses, and how it is verified |
 | [04-planning.md](04-planning.md) | Configuration space, RRT, and path versus trajectory |
+| [05-perception.md](05-perception.md) | Cameras, fiducials, and finding the camera from motion |
 | [00-stack.md](00-stack.md) | Every tool, why it is here, and when it arrives |
 | [02-repo-organization.md](02-repo-organization.md) | Why the tree is shaped the way it is |
 
@@ -28,6 +29,8 @@ record a measurement that contradicted the obvious answer.
 | [0008](adr/0008-kalman-gains-from-the-datasheet.md) | Kalman gains derived from the encoder, not chosen |
 | [0009](adr/0009-rrt-with-shortcutting.md) | RRT with shortcutting as the default, not RRT\* |
 | [0010](adr/0010-time-optimal-parameterisation.md) | Solve the velocity profile, don't stretch the trajectory |
+| [0011](adr/0011-eye-to-hand-with-a-single-fiducial.md) | Eye-to-hand, with one marker on the forearm |
+| [0012](adr/0012-calibrate-then-refine.md) | Closed-form hand-eye is an initial guess, not an answer |
 
 ## Things the measurements contradicted
 
@@ -51,3 +54,12 @@ textbook answer was reasonable and the measurement disagreed.
 * **Slowing a trajectory cannot fix gravity.** Peak torque converges to the
   gravity requirement, not to zero.
   ([0010](adr/0010-time-optimal-parameterisation.md))
+* **A fiducial's depth error is 3–5× its lateral error**, because depth is
+  inferred from apparent size — so the cheapest accuracy fix is a bigger marker,
+  not a better camera. ([0011](adr/0011-eye-to-hand-with-a-single-fiducial.md))
+* **A small residual proves consistency, not correctness.** A degenerate pose
+  set put the camera **428 m** away while fitting the images *better* than the
+  correct answer did. ([0012](adr/0012-calibrate-then-refine.md))
+* **Which closed-form hand-eye solver you pick stops mattering** once it is only
+  an initial guess: seven methods spanning 3.6–19.2 mm all converge to the same
+  0.661 mm after refinement. ([0012](adr/0012-calibrate-then-refine.md))

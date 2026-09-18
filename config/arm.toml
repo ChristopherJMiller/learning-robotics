@@ -169,3 +169,43 @@ control_hz   = 200            # Dynamixel bus realistically sustains this
 name        = "post"
 pos_m       = [0.0, 0.19, 0.11]
 half_size_m = [0.022, 0.022, 0.11]
+
+# ---------------------------------------------------------------------------
+# Cameras. Eye-to-hand: fixed in the world, watching the workspace, rather than
+# mounted on the arm.
+#
+# Not an arbitrary choice. This arm has three joints and cannot control
+# end-effector orientation, so a camera carried on the forearm would point
+# wherever the geometry happened to aim it. A fixed camera also matches what the
+# arm is for -- seeing objects on the surface it works over.
+#
+# These numbers are the *truth* the simulator uses. On real hardware nobody
+# tells you them, which is what calibration is for: arm.calibration recovers
+# pos_m from images and is scored against this.
+# ---------------------------------------------------------------------------
+
+[[cameras]]
+name       = "workspace"
+pos_m      = [0.42, 0.26, 0.34]
+lookat_m   = [0.03, 0.09, 0.11]
+width_px   = 640
+height_px  = 480
+fov_y_deg  = 45.0
+
+# ---------------------------------------------------------------------------
+# Fiducial markers. A printed ArUco tag carried on a link, which is what makes
+# the arm observable to a camera at all.
+#
+# size_m is the black square only, excluding the white quiet zone the detector
+# needs around it -- that distinction is a classic source of a scale error that
+# looks like a calibration failure.
+# ---------------------------------------------------------------------------
+
+[[markers]]
+name       = "forearm_tag"
+aruco_id   = 7
+dictionary = "DICT_4X4_50"
+size_m     = 0.040
+link       = "forearm"
+pos_m      = [0.075, 0.0, 0.012]
+euler_deg  = [0.0, 0.0, 0.0]

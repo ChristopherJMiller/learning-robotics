@@ -43,6 +43,7 @@ __all__ = [
     "fk",
     "fk_frames",
     "fk_frames_relative",
+    "link_frames",
     "ik",
     "ik_nearest",
     "jacobian",
@@ -313,6 +314,37 @@ def ik_nearest(
     if not candidates:
         return None
     return min(candidates, key=lambda s: float(np.linalg.norm(s.q - q_current)))
+
+
+def link_frames(q: np.ndarray, params: ArmParams | None = None) -> list[np.ndarray]:
+    """The pose of each *link body*, matching the MJCF and URDF convention.
+
+    Distinct from :func:`fk_frames`, and the difference is a genuine trap. A
+    frame from ``fk_frames`` sits at a joint and is oriented by the joints
+    *before* it; a body frame in MJCF or URDF is oriented by its own joint as
+    well, because the joint belongs to the body it drives::
+
+        fk_frames[2]  = Rz(t1)·T(0,0,L0)·Ry(-t2)·T(L1,0,0)
+        link "forearm" = Rz(t1)·T(0,0,L0)·Ry(-t2)·T(L1,0,0)·Ry(-t3)
+                                                            ^^^^^^^
+
+    Same origin, different orientation. Using one where the other is meant
+    places anything attached to a link -- a fiducial, a sensor, a tool -- at the
+    right point with the wrong rotation, which showed up as a 151 mm error in a
+    marker's supposed ground-truth position.
+
+    Returns ``[T_world_base, T_world_upper_arm, T_world_forearm]``.
+    """
+    q = np.asarray(q, dtype=float)
+    length_base, length_upper, _ = _lengths(params)
+    t1, t2, t3 = q
+
+    base = se3(rot_z(t1), np.zeros(3))
+    upper = base @ se3(np.eye(3), np.array([0.0, 0.0, length_base])) @ se3(rot_y(-t2), np.zeros(3))
+    forearm = (
+        upper @ se3(np.eye(3), np.array([length_upper, 0.0, 0.0])) @ se3(rot_y(-t3), np.zeros(3))
+    )
+    return [base, upper, forearm]
 
 
 def fk_frames_relative(q: np.ndarray, params: ArmParams | None = None) -> list[np.ndarray]:

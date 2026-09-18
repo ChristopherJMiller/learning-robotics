@@ -116,6 +116,50 @@ class Obstacle(_Frozen):
         return self
 
 
+class Camera(_Frozen):
+    """A camera fixed in the world, looking at a point.
+
+    ``pos_m`` and ``lookat_m`` are far easier to reason about than an
+    orientation, and the axes MuJoCo wants are derived from them in
+    ``arm.camera``. What is stored here is the *truth* the simulator uses;
+    recovering it from images is what calibration does.
+    """
+
+    name: str
+    pos_m: tuple[float, float, float]
+    lookat_m: tuple[float, float, float]
+    width_px: int = Field(gt=0)
+    height_px: int = Field(gt=0)
+    fov_y_deg: float = Field(gt=0, lt=180)
+
+    @model_validator(mode="after")
+    def _looks_somewhere_else(self) -> Camera:
+        if np.allclose(self.pos_m, self.lookat_m):
+            raise ValueError(
+                f"camera {self.name!r}: pos_m and lookat_m are the same point, "
+                "so it has no view direction"
+            )
+        return self
+
+
+class Marker(_Frozen):
+    """A printed fiducial carried on a link.
+
+    ``size_m`` is the black square only. The white quiet zone a detector needs
+    around it is generated separately and is *not* part of this number -- a
+    classic way to introduce a scale error that then looks like a calibration
+    failure rather than a measurement one.
+    """
+
+    name: str
+    aruco_id: int = Field(ge=0)
+    dictionary: str
+    size_m: float = Field(gt=0)
+    link: str
+    pos_m: tuple[float, float, float]
+    euler_deg: tuple[float, float, float] = (0.0, 0.0, 0.0)
+
+
 class Material(_Frozen):
     name: str
     density_kgm3: float = Field(gt=0)
@@ -155,10 +199,23 @@ class ArmParams(_Frozen):
     geometry: Geometry
     material: Material
     obstacles: tuple[Obstacle, ...] = ()
+    cameras: tuple[Camera, ...] = ()
+    markers: tuple[Marker, ...] = ()
     links: tuple[Link, ...]
     joints: tuple[Joint, ...]
     actuators: dict[str, Actuator]
     sim: Sim
+
+    @model_validator(mode="after")
+    def _markers_are_attached_to_real_links(self) -> ArmParams:
+        names = {link.name for link in self.links}
+        for marker in self.markers:
+            if marker.link not in names:
+                raise ValueError(
+                    f"marker {marker.name!r} is attached to unknown link "
+                    f"{marker.link!r}; known links are {sorted(names)}"
+                )
+        return self
 
     @model_validator(mode="after")
     def _cross_references_resolve(self) -> ArmParams:

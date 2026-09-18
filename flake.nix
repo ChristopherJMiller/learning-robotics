@@ -32,6 +32,10 @@
             mujoco
             rerun-sdk
             pinocchio
+            # opencv4 rather than opencv-python: the nixpkgs build includes the
+            # contrib modules, and cv2.aruco lives in contrib. Verified present
+            # along with calibrateCamera, calibrateHandEye and solvePnP.
+            opencv4
             pytest
             pytest-cov
             hypothesis
@@ -109,7 +113,7 @@
             src = ./.;
             nativeBuildInputs = [
               (python.withPackages (ps: with ps; [
-                numpy scipy pydantic mujoco rerun-sdk pinocchio pytest hypothesis
+                numpy scipy pydantic mujoco rerun-sdk pinocchio opencv4 pytest hypothesis
               ]))
             ];
             buildPhase = ''

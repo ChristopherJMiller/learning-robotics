@@ -4,11 +4,13 @@
      Generator: src/arm/models.py  (run `just models`)
      Edits here are silently discarded on the next regeneration. -->
 <mujoco model="learn-arm-3dof">
-  <compiler angle="radian" meshdir="../../cad/export"/>
+  <compiler angle="radian" meshdir="../../cad/export" texturedir="../../assets/markers"/>
   <asset>
     <mesh name="base_mesh" file="base.stl"/>
     <mesh name="upper_arm_mesh" file="upper_arm.stl"/>
     <mesh name="forearm_mesh" file="forearm.stl"/>
+    <texture name="marker_forearm_tag" type="2d" file="forearm_tag.png"/>
+    <material name="marker_forearm_tag_material" texture="marker_forearm_tag" texuniform="false" specular="0" shininess="0"/>
   </asset>
   <option timestep="0.001" gravity="0 0 -9.81" integrator="implicitfast"/>
   <default>
@@ -16,7 +18,9 @@
   </default>
   <worldbody>
     <light pos="0 0 1.5" dir="0 0 -1" diffuse="0.8 0.8 0.8"/>
+    <light pos="0.6 0.4 0.6" dir="-0.6 -0.4 -0.6" diffuse="0.5 0.5 0.5"/>
     <geom name="floor" type="plane" size="1 1 0.05" rgba="0.25 0.26 0.28 1"/>
+    <camera name="workspace" pos="0.42 0.26 0.34" xyaxes="-0.399585421 0.916695965 0 -0.435951368 -0.190030083 0.879678903" fovy="45"/>
     <geom name="obstacle_post" type="box" pos="0 0.19 0.11" size="0.022 0.022 0.11" rgba="0.45 0.35 0.30 1"/>
     <body name="base" pos="0 0 0">
       <joint name="base_yaw" type="hinge" axis="0 0 1" range="-3.0543 3.0543" armature="0.01" damping="0.05" frictionloss="0"/>
@@ -33,6 +37,7 @@
           <inertial pos="0.0656355 0 0" mass="0.0699903" diaginertia="1.07128e-05 0.000162768 0.000165244"/>
           <geom name="forearm_collision" type="box" pos="0.075 0 0" size="0.075 0.015 0.011" group="3" rgba="0.8 0.3 0.3 0.25"/>
           <geom name="forearm_visual" type="mesh" mesh="forearm_mesh" contype="0" conaffinity="0" group="2" rgba="0.62 0.66 0.72 1"/>
+          <geom name="marker_forearm_tag" type="box" pos="0.075 0 0.012" euler="0 0 0" size="0.03 0.03 0.0005" material="marker_forearm_tag_material" contype="0" conaffinity="0" group="2"/>
           <site name="ee" pos="0.15 0 0" size="0.006"/>
         </body>
       </body>

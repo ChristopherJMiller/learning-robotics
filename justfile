@@ -94,3 +94,15 @@ cad-build:
 # Enter the CAD shell.
 cad:
     nix develop .#cad
+
+# Render the fiducial marker textures (committed, like the CAD meshes).
+markers:
+    python scripts/gen_markers.py
+
+# What the camera sees, and how well it recovers where the arm is.
+perception *ARGS:
+    python scripts/viz_perception.py {{ARGS}}
+
+# Recover the camera pose from motion alone; --degenerate shows it failing.
+calibrate *ARGS:
+    python scripts/calibrate_handeye.py {{ARGS}}

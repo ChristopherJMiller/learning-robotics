@@ -25,12 +25,17 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from xml.dom import minidom
 
+import numpy as np
+
 from arm.params import REPO_ROOT, ArmParams, default_params
 
 GENERATED_DIR = REPO_ROOT / "models" / "generated"
 MESH_DIR = REPO_ROOT / "cad" / "export"
-# Path from models/generated/ to cad/export/, as written into the model files.
+TEXTURE_DIR = REPO_ROOT / "assets" / "markers"
+# Paths from models/generated/, as written into the model files. Relative so the
+# model is portable; MuJoCo resolves them against the file it was loaded from.
 MESH_RELATIVE = "../../cad/export"
+TEXTURE_RELATIVE = "../../assets/markers"
 URDF_PATH = GENERATED_DIR / "arm.urdf"
 MJCF_PATH = GENERATED_DIR / "arm.xml"
 
@@ -208,7 +213,12 @@ def _urdf_link(robot: ET.Element, link, length: float, along: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-def build_mjcf(params: ArmParams | None = None, *, meshdir: str | None = None) -> str:
+def build_mjcf(
+    params: ArmParams | None = None,
+    *,
+    meshdir: str | None = None,
+    texturedir: str | None = None,
+) -> str:
     """Generate MJCF. ``meshdir`` defaults to the path relative to the written file.
 
     A model compiled from a *string* has no file to be relative to, so
@@ -218,16 +228,48 @@ def build_mjcf(params: ArmParams | None = None, *, meshdir: str | None = None) -
     params = params or default_params()
     root = ET.Element("mujoco", model=params.meta.name)
 
-    ET.SubElement(root, "compiler", angle="radian", meshdir=meshdir or MESH_RELATIVE)
+    ET.SubElement(
+        root,
+        "compiler",
+        angle="radian",
+        meshdir=meshdir or MESH_RELATIVE,
+        texturedir=texturedir or TEXTURE_RELATIVE,
+    )
 
     # Visual meshes exported from the CAD. Collision stays on the capsules
     # below: convexified meshes are slower and buy nothing for an arm whose
     # links are convex-ish anyway. Separating visual from collision geometry is
     # standard practice, not a shortcut.
+    assets = None
     if _meshes_available():
         assets = ET.SubElement(root, "asset")
         for _, link, _, _, _ in _chain(params):
             ET.SubElement(assets, "mesh", name=f"{link.name}_mesh", file=f"{link.name}.stl")
+
+    # Marker textures, resolved through texturedir rather than by absolute path.
+    # An absolute path works locally and breaks the moment the model is loaded
+    # anywhere else -- it made `nix flake check` fail, because the sandbox has
+    # no /home. Same lesson the mesh paths taught.
+    if params.markers:
+        if assets is None:
+            assets = ET.SubElement(root, "asset")
+        for marker in params.markers:
+            ET.SubElement(
+                assets,
+                "texture",
+                name=f"marker_{marker.name}",
+                type="2d",
+                file=f"{marker.name}.png",
+            )
+            ET.SubElement(
+                assets,
+                "material",
+                name=f"marker_{marker.name}_material",
+                texture=f"marker_{marker.name}",
+                texuniform="false",
+                specular="0",
+                shininess="0",
+            )
     ET.SubElement(
         root,
         "option",
@@ -243,6 +285,12 @@ def build_mjcf(params: ArmParams | None = None, *, meshdir: str | None = None) -
 
     worldbody = ET.SubElement(root, "worldbody")
     ET.SubElement(worldbody, "light", pos="0 0 1.5", dir="0 0 -1", diffuse="0.8 0.8 0.8")
+    # A second light, from the side. A fiducial lit only from directly above sits
+    # in its own shadow at shallow viewing angles and the detector loses it --
+    # lighting is a perception parameter, not decoration.
+    ET.SubElement(
+        worldbody, "light", pos="0.6 0.4 0.6", dir="-0.6 -0.4 -0.6", diffuse="0.5 0.5 0.5"
+    )
     ET.SubElement(
         worldbody,
         "geom",
@@ -251,6 +299,21 @@ def build_mjcf(params: ArmParams | None = None, *, meshdir: str | None = None) -
         size="1 1 0.05",
         rgba="0.25 0.26 0.28 1",
     )
+
+    # Cameras. Declared with a position and a target in the configuration, which
+    # is what a person can reason about; MuJoCo wants axes, so they are derived.
+    for camera in params.cameras:
+        from arm.camera import camera_axes
+
+        right, up, _ = camera_axes(camera)
+        ET.SubElement(
+            worldbody,
+            "camera",
+            name=camera.name,
+            pos=_vec(camera.pos_m),
+            xyaxes=f"{_vec(right)} {_vec(up)}",
+            fovy=_fmt(camera.fov_y_deg),
+        )
 
     # Static obstacles, welded to the world. Collision geometry only: they carry
     # no mass and are never simulated as dynamic bodies, because their only job
@@ -319,6 +382,30 @@ def build_mjcf(params: ArmParams | None = None, *, meshdir: str | None = None) -
                 group="2",
                 rgba="0.62 0.66 0.72 1",
             )
+
+        # Fiducials carried on this link. Visual only -- a printed sticker has
+        # no mass worth modelling and must not collide, but it does have to be
+        # lit and rendered, which is why it is in group 2 alongside the meshes.
+        for marker in params.markers:
+            if marker.link != link.name:
+                continue
+            from arm.fiducial import texture_size_m
+
+            half = texture_size_m(marker) / 2.0
+            ET.SubElement(
+                body,
+                "geom",
+                name=f"marker_{marker.name}",
+                type="box",
+                pos=_vec(marker.pos_m),
+                euler=_vec(np.radians(marker.euler_deg)),
+                size=f"{_fmt(half)} {_fmt(half)} 0.0005",
+                material=f"marker_{marker.name}_material",
+                contype="0",
+                conaffinity="0",
+                group="2",
+            )
+
         parent = body
 
     # Matches the URDF's ee frame so both models measure the same point.
